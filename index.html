@@ -3,24 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>旺财宝 - 智能基金持仓管理</title>
-<meta name="description" content="旺财宝是一款简洁美观的基金持仓看板工具，支持智能导入、行业板块分析、收益追踪和伪装模式。">
-<meta property="og:title" content="旺财宝 - 智能基金持仓管理">
-<meta property="og:description" content="简洁美观的基金持仓看板，支持截图识别导入、板块分类分析、历史收益图表。">
-<meta property="og:type" content="website">
-<meta property="og:locale" content="zh_CN">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+<title>旺财宝</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
     --bg:#f5f5f0; --card:#fafaf8; --text:#2d3436; --text2:#7c8a91; --border:#e8e6e1;
-    --accent:#6b8aad; --green:#6db88a; --red:#c97070; --orange:#c9a96e;
+    --accent:#2a9d8f; --green:#6db88a; --red:#c97070; --orange:#c9a96e;
     --radius:12px; --shadow:0 1px 8px rgba(0,0,0,.04);
     --calc-bg:#f0efeb; --calc-bg2:#eae8e3; --calc-bg3:#edecea;
   }
   [data-theme="dark"] {
     --bg:#1a1d23; --card:#24272e; --text:#d4d4d8; --text2:#8b8f99; --border:#363940;
-    --accent:#8a9bb5; --green:#6db88a; --red:#c98080; --orange:#c9a96e;
+    --accent:#3dbfae; --green:#6db88a; --red:#c98080; --orange:#c9a96e;
     --shadow:0 1px 8px rgba(0,0,0,.2);
     --calc-bg:#2e3138; --calc-bg2:#282b33; --calc-bg3:#2e3138;
   }
@@ -88,7 +82,57 @@
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;transition:background .4s ease,color .4s ease;position:relative;min-height:100vh}
   body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 20% 0%,rgba(107,138,173,.06) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(201,169,110,.04) 0%,transparent 50%);pointer-events:none;z-index:0}
-  .dashboard{max-width:1320px;margin:0 auto;padding:28px 24px 48px;position:relative;z-index:1}
+  .dashboard{display:grid;grid-template-columns:180px 1fr 260px;gap:0;max-width:1440px;padding:0;position:relative;z-index:1}
+  .sidebar{background:var(--card);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+  .sidebar-nav{list-style:none;padding:0;margin:0}
+  .sidebar-nav li{padding:12px 20px;font-size:14px;color:var(--text2);cursor:pointer;transition:all .2s;border-left:3px solid transparent;display:flex;align-items:center;gap:8px}
+  .sidebar-nav li:hover{background:var(--calc-bg);color:var(--text)}
+  .sidebar-nav li.active{background:var(--calc-bg);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+  .sidebar-nav li .nav-icon{font-size:16px;width:20px;text-align:center}
+  .main-content{padding:24px;min-width:0}
+  .insights-panel{background:var(--card);border-left:1px solid var(--border);padding:20px;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .health-gauge{width:120px;height:120px;margin:0 auto 16px;position:relative}
+  .health-gauge svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .health-gauge .hg-bg{fill:none;stroke:var(--border);stroke-width:8}
+  .health-gauge .hg-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.34,1.56,.64,1)}
+  .health-gauge .hg-score{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .health-gauge .hg-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+  .health-gauge .hg-label{font-size:10px;color:var(--text2);margin-top:2px}
+  .insight-section{margin-bottom:20px}
+  .insight-section h4{font-size:12px;color:var(--text2);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+  .insight-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px}
+  .insight-row .ir-label{color:var(--text2)}
+  .insight-row .ir-value{font-weight:600;font-variant-numeric:tabular-nums}
+  .concentration-bar{height:6px;background:var(--border);border-radius:3px;margin-top:6px;overflow:hidden}
+  .concentration-bar div{height:100%;border-radius:3px;background:var(--accent);transition:width .5s}
+  .suggestion-box{background:var(--calc-bg);border-radius:10px;padding:12px;font-size:12px;line-height:1.7;color:var(--text2);border-left:3px solid var(--accent)}
+  .suggestion-box strong{color:var(--text)}
+  .risk-dot{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+  .risk-dot .rd-circle{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .risk-dot.high .rd-circle{background:#e67e22}
+  .risk-dot.medium .rd-circle{background:#2a9d8f}
+  .risk-dot.low .rd-circle{background:#5b8def}
+  .table-toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center}
+  .table-search{flex:1;padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card);color:var(--text);outline:none;transition:border-color .2s}
+  .table-search:focus{border-color:var(--accent)}
+  .table-filter{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card);color:var(--text);outline:none;cursor:pointer}
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+  @media(max-width:1024px){
+    .dashboard{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .insights-panel{border-left:none;border-top:1px solid var(--border);height:auto;position:static}
+    .mobile-tabs{display:flex!important}
+  }
+  .mobile-tabs{display:none;gap:0;background:var(--card);border-bottom:1px solid var(--border);padding:0 16px}
+  .mobile-tabs button{flex:1;padding:12px;border:none;background:none;color:var(--text2);font-size:13px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;font-weight:500}
+  .mobile-tabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  /* Stealth additions */
+  [data-stealth="true"] .sidebar{background:#fff;border-right-color:#e5e7eb}
+  [data-stealth="true"] .sidebar-nav li.active{background:#f3f4f6;color:#6b7280;border-left-color:#9ca3af}
+  [data-stealth="true"] .insights-panel{background:#fff;border-left-color:#e5e7eb}
+  [data-stealth="true"] .health-gauge .hg-bg{stroke:#e5e7eb}
+  [data-stealth="true"] .suggestion-box{background:#f9fafb;border-left-color:#9ca3af}
 
   .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px}
   .header h1{font-size:24px;font-weight:600}
@@ -463,7 +507,7 @@
     .summary{grid-template-columns:repeat(2,1fr)}
     .summary-card:not(:last-child){border-right:none;border-bottom:1px solid var(--border)}
     .summary-value{font-size:18px}
-    .header h1{font-size:22px}
+    .header h2{font-size:22px!important}
     .form-row{grid-template-columns:1fr}
     .charts-half{grid-template-columns:1fr}
     .btn-sep{display:none}
@@ -471,9 +515,10 @@
   }
 
   @media(max-width:768px){
-    .dashboard{padding:12px 12px 80px}
+    .dashboard{padding:0}
+    .main-content{padding:12px 12px 80px}
     .header{position:sticky;top:0;z-index:50;background:var(--bg);padding:12px 0 8px;margin-bottom:16px;border-bottom:1px solid var(--border);gap:8px}
-    .header h1{font-size:18px}
+    .header h2{font-size:18px!important}
     .header .date{font-size:12px}
     .header-btns{width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:4px;scrollbar-width:none;-ms-overflow-style:none}
     .header-btns::-webkit-scrollbar{display:none}
@@ -549,7 +594,7 @@
     .summary-card{padding:12px 16px}
     .summary-card:not(:last-child){border-right:none;border-bottom:1px solid var(--border)}
     .summary-value{font-size:18px}
-    .header h1{font-size:17px}
+    .header h2{font-size:17px!important}
     .hbtn{padding:5px 10px;font-size:11px}
     .detail-header{flex-direction:column;gap:6px}
     .detail-header .dh-tag{align-self:flex-start}
@@ -566,131 +611,174 @@
 </head>
 <body>
 <div class="dashboard">
-  <div class="header">
-    <div>
-      <h1 id="dashTitle">
+  <!-- 左侧边栏 -->
+  <div class="sidebar">
+    <div style="padding:16px 20px 20px">
+      <h1 id="dashTitle" style="margin:0">
         <div class="title-plate">
-          <span class="title-name">旺财宝</span>
-          <span class="title-tag">智能持仓管理</span>
-          <svg class="title-ingot" viewBox="0 0 24 16"><path d="M2,14 Q0,14 1,11 L4,6 Q6,3 8,5 L10,7 Q11,8 12,8 Q13,8 14,7 L16,5 Q18,3 20,6 L23,11 Q24,14 22,14 Z" fill="url(#ingotGold)"/><ellipse cx="12" cy="7" rx="4" ry="2" fill="rgba(255,240,180,.45)"/><defs><linearGradient id="ingotGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0d060"/><stop offset="100%" stop-color="#b8860b"/></linearGradient></defs></svg>
+          <span class="title-name" style="font-size:18px;letter-spacing:.12em">旺财宝</span>
         </div>
       </h1>
-      <div class="date" id="todayDate"><button id="stealthToggle" class="stealth-btn" onclick="toggleStealth()" title="切换显示模式">◐</button></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px;opacity:.5">基金持仓工作台</div>
     </div>
-    <div class="header-btns">
-      <div class="btn-group">
-        <button class="hbtn" onclick="refreshAllNav()" title="自动获取所有基金最新净值">刷新净值</button>
+    <ul class="sidebar-nav">
+      <li class="active" onclick="switchTab('overview')" data-tab="overview"><span class="nav-icon">📊</span>今日总览</li>
+      <li onclick="switchTab('analysis')" data-tab="analysis"><span class="nav-icon">📈</span>资产分析</li>
+      <li onclick="switchTab('details')" data-tab="details"><span class="nav-icon">📋</span>基金详情</li>
+    </ul>
+    <div style="padding:20px;margin-top:auto">
+      <button id="stealthToggle" class="stealth-btn" onclick="toggleStealth()" title="切换显示模式" style="font-size:12px;opacity:.5">◐ 伪装模式</button>
+    </div>
+  </div>
+
+  <!-- 中间主内容区 -->
+  <div class="main-content">
+    <!-- Mobile tabs -->
+    <div class="mobile-tabs" id="mobileTabs">
+      <button class="active" onclick="switchTab('overview')" data-tab="overview">总览</button>
+      <button onclick="switchTab('analysis')" data-tab="analysis">分析</button>
+      <button onclick="switchTab('details')" data-tab="details">详情</button>
+    </div>
+    <!-- 顶部工具栏 -->
+    <div class="header" style="margin-bottom:24px">
+      <div>
+        <h2 id="tabTitle" style="font-size:20px;font-weight:600;margin:0">今日总览</h2>
+        <div class="date" id="todayDate" style="margin-top:4px"></div>
+      </div>
+      <div class="header-btns">
+        <button class="hbtn" onclick="refreshAllNav()">刷新净值</button>
+        <button class="hbtn" onclick="toggleDarkMode()" id="themeBtn">暗色</button>
+        <button class="hbtn" onclick="toggleHideAmounts()" id="hideBtn">隐藏金额</button>
+        <button class="hbtn primary" onclick="openModal()">+ 新增基金</button>
         <div class="more-wrap">
-          <button class="hbtn" onclick="toggleMoreMenu(event)" title="更多操作">⋯</button>
+          <button class="hbtn" onclick="toggleMoreMenu(event)">⋯</button>
           <div class="more-menu" id="moreMenu">
             <button class="hbtn" onclick="forceRefreshNav();closeMoreMenu()">强制刷新</button>
             <button class="hbtn" onclick="showNavDebug();closeMoreMenu()">调试</button>
+            <button class="hbtn" onclick="exportData()">导出</button>
+            <button class="hbtn" onclick="document.getElementById('importFile2').click()">导入</button>
+            <input type="file" id="importFile2" accept=".json" style="display:none" onchange="importData(event)">
+            <button class="hbtn" onclick="openTxLog()">交易记录</button>
+            <button class="hbtn" onclick="openCalc()">加减仓计算</button>
+            <button class="hbtn" onclick="openManage()">管理基金</button>
+            <button class="hbtn" onclick="openImport()">导入持仓</button>
+            <button class="hbtn danger" onclick="clearAllData()">清空数据</button>
           </div>
         </div>
       </div>
-      <div class="btn-sep"></div>
-      <div class="btn-group">
-        <button class="hbtn" onclick="exportData()">导出</button>
-        <button class="hbtn" onclick="document.getElementById('importFile').click()">导入</button>
-        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-        <button class="hbtn" onclick="openTxLog()">交易记录</button>
+    </div>
+
+    <!-- Tab: 今日总览 -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="summary" id="summaryCards"></div>
+      <div class="charts-half">
+        <div class="chart-card" style="margin-bottom:0"><h3>持仓占比分布</h3><div class="chart-wrap"><canvas id="pieChart"></canvas></div></div>
+        <div class="chart-card" style="margin-bottom:0"><h3>各基金收益率对比</h3><div class="chart-wrap"><canvas id="barChart"></canvas></div></div>
       </div>
-      <div class="btn-sep"></div>
-      <div class="btn-group">
-        <button class="hbtn" onclick="openCalc()">加减仓计算</button>
-        <button class="hbtn" onclick="toggleDarkMode()" id="themeBtn">暗色模式</button>
-        <button class="hbtn" onclick="openManage()" style="border-color:var(--accent);color:var(--accent)">管理基金</button>
-        <button class="hbtn" onclick="openImport()" style="border-color:var(--green);color:var(--green)">导入持仓</button>
-        <button class="hbtn danger" onclick="clearAllData()">清空数据</button>
-        <button class="hbtn primary" onclick="openModal()">✎ 编辑持仓</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="summary" id="summaryCards"></div>
-
-  <div class="charts-half">
-    <div class="chart-card" style="margin-bottom:0">
-      <h3>持仓占比分布</h3>
-      <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
-    </div>
-    <div class="chart-card" style="margin-bottom:0">
-      <h3>各基金收益率对比</h3>
-      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
-    </div>
-  </div>
-
-  <div class="chart-card">
-    <h3>基金详情</h3>
-    <p class="subtitle">每只基金的完整持仓信息，包括购买金额、成本、收益率和持有天数</p>
-    <div class="detail-grid" id="detailGrid"></div>
-  </div>
-
-  <div class="table-card">
-    <h3>持仓明细</h3>
-    <div class="table-scroll">
-      <table>
-        <thead><tr>
-          <th onclick="sortTable('name')">基金名称 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('code')">基金代码 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('sector')">行业板块 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('subSector')">细分板块 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('holding')">持有金额 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('pct')">持仓占比 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('cost')">持有成本 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('profit')">持有收益 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('returnRate')">收益率 <span class="sort-arrow">&#8693;</span></th>
-          <th onclick="sortTable('maxdd')">最大回撤 <span class="sort-arrow">&#8693;</span></th>
-          <th>操作</th>
-        </tr></thead>
-        <tbody id="fundTable"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="chart-card">
-    <h3>行业板块分布</h3>
-    <div class="treemap-wrap" id="sectorGrid"></div>
-    <div class="treemap-hint" id="treemapHint" style="display:none" onclick="toggleTreemapFilter(null)"></div>
-  </div>
-
-  <div class="chart-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 style="margin-bottom:0">历史数据分析 <span class="history-count" id="historyCount">0 条记录</span></h3>
-      <div class="chart-tabs">
-        <button class="chart-tab active" onclick="switchHistoryTab('trend')">收益率趋势</button>
-        <button class="chart-tab" onclick="switchHistoryTab('drawdown')">回撤分析</button>
+      <div class="table-card">
+        <h3>持仓明细</h3>
+        <div class="table-toolbar">
+          <input class="table-search" id="tableSearch" placeholder="搜索名称 / 代码" oninput="filterTable()">
+          <select class="table-filter" id="tableFilter" onchange="filterTable()">
+            <option value="">全部行业</option>
+          </select>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th onclick="sortTable('name')">基金名称 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('code')">基金代码 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('sector')">行业 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('subSector')">细分板块 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('holding')">持有金额 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('pct')">占比 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('cost')">成本 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('profit')">收益 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('returnRate')">收益率 <span class="sort-arrow">&#8693;</span></th>
+              <th onclick="sortTable('maxdd')">最大回撤 <span class="sort-arrow">&#8693;</span></th>
+              <th>风险</th>
+              <th>操作</th>
+            </tr></thead>
+            <tbody id="fundTable"></tbody>
+          </table>
+        </div>
       </div>
     </div>
-    <p class="subtitle" id="historySubtitle">每次保存数据时自动记录，含沪深300基准对比</p>
-    <div class="range-selector" id="rangeSelector">
-      <span class="range-label">时间范围</span>
-      <button class="range-btn" onclick="setHistoryRange('1m')">近1月</button>
-      <button class="range-btn" onclick="setHistoryRange('3m')">近3月</button>
-      <button class="range-btn" onclick="setHistoryRange('6m')">近6月</button>
-      <button class="range-btn" onclick="setHistoryRange('1y')">近1年</button>
-      <button class="range-btn active" onclick="setHistoryRange('all')">全部</button>
-    </div>
-    <div class="chart-wrap" id="trendWrap"><canvas id="trendChart"></canvas></div>
-    <div class="chart-wrap" id="drawdownWrap" style="display:none"><canvas id="drawdownChart"></canvas></div>
-  </div>
 
-  <!-- E-pet: Little Chicken -->
-  <div class="pet-wrap" id="petWrap" onclick="petClick()">
-    <div class="pet-bubble" id="petBubble"></div>
-    <div class="pet-body" id="petBody">
-      <div class="pet-comb"><i></i><i></i><i></i></div>
-      <div class="pet-bg">
-        <div class="pet-eye" id="petEye"></div>
-        <div class="pet-blush"></div>
-        <div class="pet-beak"></div>
+    <!-- Tab: 资产分析 -->
+    <div class="tab-content" id="tab-analysis">
+      <div class="chart-card"><h3>基金详情</h3><p class="subtitle">每只基金的完整持仓信息，包括购买金额、成本、收益率和持有天数</p><div class="detail-grid" id="detailGrid"></div></div>
+      <div class="chart-card"><h3>行业板块分布</h3><div class="treemap-wrap" id="sectorGrid"></div><div class="treemap-hint" id="treemapHint" style="display:none" onclick="toggleTreemapFilter(null)"></div></div>
+      <div class="chart-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="margin-bottom:0">历史数据分析 <span class="history-count" id="historyCount">0 条记录</span></h3>
+          <div class="chart-tabs">
+            <button class="chart-tab active" onclick="switchHistoryTab('trend')">收益率趋势</button>
+            <button class="chart-tab" onclick="switchHistoryTab('drawdown')">回撤分析</button>
+          </div>
+        </div>
+        <p class="subtitle" id="historySubtitle">每次保存数据时自动记录，含沪深300基准对比</p>
+        <div class="range-selector" id="rangeSelector">
+          <span class="range-label">时间范围</span>
+          <button class="range-btn" onclick="setHistoryRange('1m')">近1月</button>
+          <button class="range-btn" onclick="setHistoryRange('3m')">近3月</button>
+          <button class="range-btn" onclick="setHistoryRange('6m')">近6月</button>
+          <button class="range-btn" onclick="setHistoryRange('1y')">近1年</button>
+          <button class="range-btn active" onclick="setHistoryRange('all')">全部</button>
+        </div>
+        <div class="chart-wrap" id="trendWrap"><canvas id="trendChart"></canvas></div>
+        <div class="chart-wrap" id="drawdownWrap" style="display:none"><canvas id="drawdownChart"></canvas></div>
       </div>
-      <div class="pet-wing"></div>
-      <div class="pet-feet"><i></i><i></i></div>
     </div>
+
+    <!-- Tab: 基金详情 -->
+    <div class="tab-content" id="tab-details">
+      <div class="chart-card"><h3>基金详情卡片</h3><p class="subtitle">每只基金的完整持仓信息</p><div class="detail-grid" id="detailGrid2"></div></div>
+    </div>
+
+    <!-- 电子宠物 -->
+    <div class="pet-wrap" id="petWrap" onclick="petClick()">
+      <div class="pet-bubble" id="petBubble"></div>
+      <div class="pet-body" id="petBody">
+        <div class="pet-comb"><i></i><i></i><i></i></div>
+        <div class="pet-bg"><div class="pet-eye" id="petEye"></div><div class="pet-blush"></div><div class="pet-beak"></div></div>
+        <div class="pet-wing"></div>
+        <div class="pet-feet"><i></i><i></i></div>
+      </div>
+    </div>
+
+    <div class="footer" data-orig="数据自动保存在浏览器本地 · 模板由 QoderWork 生成">数据自动保存在浏览器本地 · 模板由 QoderWork 生成</div>
   </div>
 
-  <div class="footer" data-orig="数据自动保存在浏览器本地 · 模板由 QoderWork 生成">数据自动保存在浏览器本地 · 模板由 QoderWork 生成</div>
+  <!-- 右侧洞察面板 -->
+  <div class="insights-panel" id="insightsPanel">
+    <div class="health-gauge" id="healthGauge">
+      <svg viewBox="0 0 120 120">
+        <circle class="hg-bg" cx="60" cy="60" r="50"/>
+        <circle class="hg-fill" id="hgFill" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"/>
+      </svg>
+      <div class="hg-score">
+        <span class="hg-num" id="hgNum">--</span>
+        <span class="hg-label">健康评分</span>
+      </div>
+    </div>
+    <div id="hgComment" style="text-align:center;font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.5"></div>
+
+    <div class="insight-section">
+      <h4>关键指标</h4>
+      <div id="insightMetrics"></div>
+    </div>
+
+    <div class="insight-section">
+      <h4>仓位集中度</h4>
+      <div id="concentrationInfo"></div>
+    </div>
+
+    <div class="insight-section">
+      <h4>操作建议</h4>
+      <div class="suggestion-box" id="suggestionBox"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Edit Modal -->
@@ -1034,18 +1122,18 @@ function addTransaction(tx) {
 // ===== Theme =====
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
-  if (saved === 'dark') { document.documentElement.setAttribute('data-theme','dark'); document.getElementById('themeBtn').textContent = '亮色模式'; }
+  if (saved === 'dark') { document.documentElement.setAttribute('data-theme','dark'); document.getElementById('themeBtn').textContent = '亮色'; }
 }
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   if (isDark) {
     document.documentElement.removeAttribute('data-theme');
     localStorage.setItem(THEME_KEY, 'light');
-    document.getElementById('themeBtn').textContent = '暗色模式';
+    document.getElementById('themeBtn').textContent = '暗色';
   } else {
     document.documentElement.setAttribute('data-theme','dark');
     localStorage.setItem(THEME_KEY, 'dark');
-    document.getElementById('themeBtn').textContent = '亮色模式';
+    document.getElementById('themeBtn').textContent = '亮色';
   }
   render(); // re-render charts with new colors
 }
@@ -1062,6 +1150,8 @@ const STEALTH_TEXT = {
   '刷新净值':'刷新数据', '加减仓计算':'数据计算',
   '编辑持仓':'编辑数据', '✎ 编辑持仓':'✎ 编辑数据',
   '管理基金':'管理项目', '导入持仓':'导入项目', '交易记录':'操作记录',
+  '暗色':'系统设置', '亮色':'显示设置', '隐藏金额':'隐藏数值', '显示金额':'显示数值',
+  '+ 新增基金':'+ 新增项目',
   // Detail card labels
   '持有金额':'数值', '持有成本':'基准值', '持有收益':'变动',
   '持仓成本净值':'基准单价', '成本净值':'基准单价',
@@ -1107,24 +1197,27 @@ function toggleStealth() {
   if (on) document.documentElement.setAttribute('data-stealth','true');
   else document.documentElement.removeAttribute('data-stealth');
   localStorage.setItem(STEALTH_KEY, on ? 'true' : 'false');
-  document.getElementById('stealthToggle').textContent = on ? '◑' : '◐';
+  const btn = document.getElementById('stealthToggle');
+  if (btn) btn.textContent = (on ? '◑' : '◐') + ' 伪装模式';
   applyStealthStaticText();
   render();
 }
 function applyStealthStaticText() {
   const s = isStealth();
-  // Title
+  // Title (now in sidebar)
   const titleEl = document.getElementById('dashTitle');
   if (s) {
-    titleEl.innerHTML = '数据概览';
-    titleEl.style.fontSize = '24px';
-    titleEl.style.fontWeight = '600';
+    titleEl.innerHTML = '<span style="font-size:18px;font-weight:600;letter-spacing:.08em">数据概览</span>';
   } else {
-    titleEl.innerHTML = '<div class="title-plate"><span class="title-name">旺财宝</span><span class="title-tag">智能持仓管理</span><svg class="title-ingot" viewBox="0 0 24 16"><path d="M2,14 Q0,14 1,11 L4,6 Q6,3 8,5 L10,7 Q11,8 12,8 Q13,8 14,7 L16,5 Q18,3 20,6 L23,11 Q24,14 22,14 Z" fill="url(#ingotGold)"/><ellipse cx="12" cy="7" rx="4" ry="2" fill="rgba(255,240,180,.45)"/><defs><linearGradient id="ingotGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0d060"/><stop offset="100%" stop-color="#b8860b"/></linearGradient></defs></svg></div>';
-    titleEl.style.fontSize = '';
-    titleEl.style.fontWeight = '';
+    titleEl.innerHTML = '<div class="title-plate"><span class="title-name" style="font-size:18px;letter-spacing:.12em">旺财宝</span></div>';
   }
   document.title = s ? '数据概览' : '旺财宝';
+  // Tab title
+  const tabTitleEl = document.getElementById('tabTitle');
+  if (tabTitleEl) {
+    const tabTitles = { overview: s?'数据总览':'今日总览', analysis: s?'数据分析':'资产分析', details: s?'数据明细':'基金详情' };
+    tabTitleEl.textContent = tabTitles[currentTab] || (s?'数据概览':'今日总览');
+  }
   // Static section headers (ones not re-rendered by JS)
   document.querySelectorAll('.chart-card h3').forEach(h => {
     const orig = h.getAttribute('data-orig') || h.textContent;
@@ -1159,7 +1252,8 @@ function initStealth() {
   const saved = localStorage.getItem(STEALTH_KEY);
   if (saved === 'true') {
     document.documentElement.setAttribute('data-stealth','true');
-    document.getElementById('stealthToggle').textContent = '◑';
+    const btn = document.getElementById('stealthToggle');
+    if (btn) btn.textContent = '◑ 伪装模式';
     applyStealthStaticText();
   }
 }
@@ -1605,10 +1699,7 @@ function render() {
 
   const now = new Date();
   const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 更新`;
-  const dateEl = document.getElementById('todayDate');
-  const stealthBtn = dateEl.querySelector('#stealthToggle');
-  dateEl.textContent = dateStr;
-  if (stealthBtn) dateEl.appendChild(stealthBtn);
+  document.getElementById('todayDate').textContent = dateStr;
 
   const st = isStealth();
   document.getElementById('summaryCards').innerHTML = `
@@ -1658,6 +1749,8 @@ function render() {
   renderTable(total);
   updateSortArrows();
   updatePetMood(totalProfit);
+  renderInsights();
+  updateTableFilter();
 }
 
 function renderPie(total) {
@@ -2225,7 +2318,7 @@ function renderTable(total) {
     const displayName = st ? f.code : f.name;
     const sectorLabel = st ? (STEALTH_SECTORS[f.sector] || f.sector) : f.sector;
     const subSectorLabel = st ? (SUB_STEALTH[f.subSector] || f.subSector || '-') : (f.subSector || '-');
-    return `<tr>
+    return `<tr data-sector="${f.sector}">
       <td style="font-weight:500">${displayName}</td>
       <td style="color:var(--text2)">${st?'':f.code}</td>
       <td><span class="tag" style="background:${color}15;color:${color}">${sectorLabel}</span></td>
@@ -2236,6 +2329,7 @@ function renderTable(total) {
       <td class="${cls}">${profit>=0?'+':''}${fmt(profit)}</td>
       <td class="${cls}" style="font-weight:600">${parseFloat(ret)>=0?'+':''}${ret}%</td>
       <td>${maxdd > 0 ? `<span class="drawdown-badge">-${maxdd.toFixed(2)}%</span>` : '-'}</td>
+      <td><span class="risk-dot ${getRiskLevel(f)}"><span class="rd-circle"></span>${getRiskLabel(getRiskLevel(f))}</span></td>
       <td><button class="edit-link" onclick="editFund(${idx})">${st?'编辑':'编辑'}</button><button class="del-link" onclick="removeFund(${idx})">${st?'删除':'删除'}</button></td>
     </tr>`;
   }).join('');
@@ -3269,6 +3363,228 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// ===== Tab Switching =====
+let currentTab = 'overview';
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.sidebar-nav li').forEach(li => li.classList.toggle('active', li.dataset.tab === tab));
+  document.querySelectorAll('.mobile-tabs button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  const titles = { overview: '今日总览', analysis: '资产分析', details: '基金详情' };
+  document.getElementById('tabTitle').textContent = titles[tab] || tab;
+  if (tab === 'analysis') { const total = funds.reduce((s,f)=>s+f.holding,0); renderDetail(total); renderSector(total); renderTrend(); renderDrawdown(); }
+  if (tab === 'details') { renderDetailCards2(); }
+}
+
+// ===== Health Score =====
+function calcHealthScore() {
+  if (funds.length === 0) return { score: 0, comment: '暂无持仓数据' };
+  const totalHolding = funds.reduce((s, f) => s + (f.holding || 0), 0);
+  const profitFunds = funds.filter(f => (f.holding || 0) - (f.cost || 0) > 0).length;
+  const profitRatio = profitFunds / funds.length;
+  const maxPct = totalHolding > 0 ? Math.max(...funds.map(f => (f.holding || 0) / totalHolding)) : 0;
+  const diversification = Math.max(0, 1 - (maxPct - 0.2) * 3);
+  const totalProfit = funds.reduce((s, f) => s + ((f.holding || 0) - (f.cost || 0)), 0);
+  const totalCost = funds.reduce((s, f) => s + (f.cost || 0), 0);
+  const returnRate = totalCost > 0 ? totalProfit / totalCost : 0;
+  const returnScore = Math.min(1, Math.max(0, (returnRate + 0.1) / 0.3));
+  const score = Math.round(profitRatio * 30 + diversification * 30 + returnScore * 25 + Math.min(1, funds.length / 5) * 15);
+  const clamped = Math.min(100, Math.max(0, score));
+  let comment = '';
+  if (clamped >= 80) comment = '组合结构比较均衡，可以继续跟踪';
+  else if (clamped >= 60) comment = '组合表现尚可，注意分散风险';
+  else comment = '需要关注集中度或亏损项';
+  return { score: clamped, comment };
+}
+
+// ===== Render Insights Panel =====
+function renderInsights() {
+  const health = calcHealthScore();
+  const circumference = 314;
+  const offset = circumference - (health.score / 100) * circumference;
+  const fill = document.getElementById('hgFill');
+  if (fill) {
+    fill.style.strokeDashoffset = offset;
+    let color = '#2a9d8f';
+    if (health.score < 60) color = '#e76f51';
+    else if (health.score < 80) color = '#e9a820';
+    fill.style.stroke = color;
+  }
+  const hgNum = document.getElementById('hgNum');
+  if (hgNum) hgNum.textContent = health.score;
+  const hgComment = document.getElementById('hgComment');
+  if (hgComment) hgComment.textContent = health.comment;
+
+  const totalHolding = funds.reduce((s, f) => s + (f.holding || 0), 0);
+  const profitFunds = funds.filter(f => (f.holding || 0) - (f.cost || 0) > 0);
+  const lossFunds = funds.filter(f => (f.holding || 0) - (f.cost || 0) < 0);
+  const maxLoss = lossFunds.length > 0 ? lossFunds.reduce((a, b) => ((a.holding || 0) - (a.cost || 0)) < ((b.holding || 0) - (b.cost || 0)) ? a : b) : null;
+  const sectors = new Set(funds.map(f => f.sector).filter(Boolean));
+  const st = isStealth();
+  const metricsHtml = `
+    <div class="insight-row"><span class="ir-label">${st?'盈利项':'盈利基金'}</span><span class="ir-value" style="color:var(--red)">${profitFunds.length}/${funds.length}</span></div>
+    <div class="insight-row"><span class="ir-label">${st?'最大变动':'亏损最大'}</span><span class="ir-value" style="color:var(--green)">${maxLoss ? (st ? maxLoss.code : maxLoss.name) : '-'}</span></div>
+    <div class="insight-row"><span class="ir-label">${st?'分类数':'行业数量'}</span><span class="ir-value">${sectors.size}</span></div>
+  `;
+  const m = document.getElementById('insightMetrics');
+  if (m) m.innerHTML = metricsHtml;
+
+  const sorted = [...funds].sort((a, b) => (b.holding || 0) - (a.holding || 0));
+  const top1Pct = totalHolding > 0 ? ((sorted[0]?.holding || 0) / totalHolding * 100).toFixed(1) : 0;
+  const top3Pct = totalHolding > 0 ? (sorted.slice(0, 3).reduce((s, f) => s + (f.holding || 0), 0) / totalHolding * 100).toFixed(1) : 0;
+  const concHtml = `
+    <div class="insight-row"><span class="ir-label">${st?'最高占比':'最高仓位'}</span><span class="ir-value">${top1Pct}%</span></div>
+    <div class="concentration-bar"><div style="width:${top1Pct}%"></div></div>
+    <div class="insight-row" style="margin-top:8px"><span class="ir-label">${st?'前三合计':'前三合计'}</span><span class="ir-value">${top3Pct}%</span></div>
+  `;
+  const c = document.getElementById('concentrationInfo');
+  if (c) c.innerHTML = concHtml;
+
+  const maxPct = totalHolding > 0 ? Math.max(...funds.map(f => (f.holding || 0) / totalHolding)) : 0;
+  let suggestions = [];
+  if (maxPct > 0.3) suggestions.push(`<strong>${st ? sorted[0].code : sorted[0].name}</strong>${st?'占比':'仓位占比'}${top1Pct}%，${st?'建议分散':'建议适当分散'}`);
+  if (lossFunds.length > funds.length / 2) suggestions.push(st?'变动项超过一半，建议审视逻辑':'亏损基金超过一半，建议审视持仓逻辑');
+  if (sectors.size < 3 && funds.length >= 3) suggestions.push(st?'分类覆盖较少，可考虑增加':'行业覆盖较少，可考虑增加不同板块配置');
+  if (suggestions.length === 0) suggestions.push(st?'结构均衡，继续跟踪':'组合结构比较均衡，可以继续跟踪净值更新和行业轮动');
+  const s = document.getElementById('suggestionBox');
+  if (s) s.innerHTML = suggestions.join('<br>');
+}
+
+// ===== Table Search & Filter =====
+function filterTable() {
+  const keyword = (document.getElementById('tableSearch')?.value || '').toLowerCase();
+  const sector = document.getElementById('tableFilter')?.value || '';
+  const rows = document.querySelectorAll('#fundTable tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    const rowSector = row.getAttribute('data-sector') || '';
+    const matchKeyword = !keyword || text.includes(keyword);
+    const matchSector = !sector || rowSector === sector;
+    row.style.display = matchKeyword && matchSector ? '' : 'none';
+  });
+}
+
+function updateTableFilter() {
+  const sectors = [...new Set(funds.map(f => f.sector).filter(Boolean))];
+  const sel = document.getElementById('tableFilter');
+  if (!sel) return;
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="">全部行业</option>' + sectors.map(s => `<option value="${s}">${isStealth()?(STEALTH_SECTORS[s]||s):s}</option>`).join('');
+  sel.value = curVal;
+}
+
+// ===== Hide Amounts Toggle (header button) =====
+function toggleHideAmounts() {
+  hideAmounts = !hideAmounts;
+  document.getElementById('hideBtn').textContent = hideAmounts ? '显示金额' : '隐藏金额';
+  render();
+}
+
+// ===== Risk Level =====
+function getRiskLevel(fund) {
+  const ret = fund.cost ? Math.abs((fund.holding - fund.cost) / fund.cost) : 0;
+  const volatility = fund.holding ? Math.abs(fund.daily || 0) / fund.holding : 0;
+  if (volatility > 0.02 || ret > 0.15) return 'high';
+  if (volatility > 0.01 || ret > 0.05) return 'medium';
+  return 'low';
+}
+function getRiskLabel(level) {
+  const st = isStealth();
+  if (st) return { high: 'B', medium: 'A', low: 'S' }[level];
+  return { high: '偏高', medium: '适中', low: '偏低' }[level];
+}
+
+// ===== Detail Cards for Details Tab =====
+function renderDetailCards2() {
+  const grid = document.getElementById('detailGrid2');
+  if (!grid) return;
+  const total = funds.reduce((s,f) => s + f.holding, 0);
+  // Reuse same logic as renderDetail but output to detailGrid2
+  const today = new Date();
+  const st = isStealth();
+  let sorted = [...funds];
+  if (fundOrder.length > 0) {
+    sorted.sort((a, b) => {
+      const ia = fundOrder.indexOf(a.code);
+      const ib = fundOrder.indexOf(b.code);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  } else {
+    sorted.sort((a, b) => b.holding - a.holding);
+  }
+  grid.innerHTML = sorted.map((f, i) => {
+    const profit = f.holding - f.cost;
+    const ret = f.cost ? ((profit / f.cost) * 100) : 0;
+    const pct = total ? (f.holding / total * 100) : 0;
+    const color = SECTOR_COLORS[f.sector] || '#6366f1';
+    const cls = profit >= 0 ? 'positive' : 'negative';
+    const sign = profit >= 0 ? '+' : '';
+    const retSign = ret >= 0 ? '+' : '';
+    const displayName = st ? f.code : f.name;
+    const sectorLabel = st ? (STEALTH_SECTORS[f.sector] || f.sector) : f.sector;
+    const subSectorLabel = st ? (SUB_STEALTH[f.subSector] || f.subSector || '') : (f.subSector || '');
+    let holdDays = '-';
+    if (f.buyDate) {
+      const buyD = new Date(f.buyDate);
+      const diff = Math.floor((today - buyD) / (1000 * 60 * 60 * 24));
+      holdDays = diff > 0 ? diff + ' 天' : '今日买入';
+    }
+    const dailyRet = f.holding > 0 ? ((f.daily / f.holding) * 100) : 0;
+    const dailyCls = f.daily >= 0 ? 'positive' : 'negative';
+    const dailySign = f.daily >= 0 ? '+' : '';
+    let annualized = '-';
+    if (f.buyDate && f.cost > 0) {
+      const buyD = new Date(f.buyDate);
+      const years = (today - buyD) / (1000 * 60 * 60 * 24 * 365);
+      if (years > 0) {
+        const ann = ((f.holding / f.cost) - 1) / years * 100;
+        const annSign = ann >= 0 ? '+' : '';
+        const annCls = ann >= 0 ? 'positive' : 'negative';
+        annualized = `<span class="${annCls}">${annSign}${ann.toFixed(2)}%</span>`;
+      }
+    }
+    const barWidth = Math.min(Math.abs(ret) / 30 * 100, 100);
+    const barColor = profit >= 0 ? 'var(--red)' : 'var(--green)';
+    const delay = (i * 0.05).toFixed(2);
+    return `<div class="detail-card" style="border-top:3px solid ${color};animation-delay:${delay}s">
+      <div class="detail-header">
+        <div class="dh-left">
+          <div class="dh-name">${displayName}</div>
+          ${st ? '' : `<div class="dh-code">${f.code}</div>`}
+        </div>
+        <span class="dh-tag" style="background:${color}15;color:${color}">${sectorLabel}${subSectorLabel ? ' · ' + subSectorLabel : ''}</span>
+      </div>
+      <div class="detail-core">
+        <div class="dc-holding">
+          <div class="dc-label">${st?'数值':'持有金额'} · ${st?'占比':'占比'} ${pct.toFixed(1)}%</div>
+          <div class="dc-value">${fmt(f.holding)} 元</div>
+        </div>
+        <div class="dc-profit">
+          <div class="dc-label">${st?'变动':'持有收益'}</div>
+          <div class="dc-value ${cls}">${sign}${fmt(profit)} 元</div>
+          <div class="dc-ret ${cls}">${retSign}${ret.toFixed(2)}%</div>
+        </div>
+      </div>
+      <div class="detail-secondary">
+        <div class="detail-item"><div class="di-label">${st?'基准值':'持有成本'}</div><div class="di-value">${fmt(f.cost)} 元</div></div>
+        <div class="detail-item"><div class="di-label">${st?'基准单价':'成本净值'}</div><div class="di-value">${f.costNav ? f.costNav.toFixed(4) : '<span style="color:var(--text2)">—</span>'}</div></div>
+        <div class="detail-item"><div class="di-label">${st?'记录天数':'持有天数'}</div><div class="di-value">${holdDays}</div></div>
+        <div class="detail-item"><div class="di-label">${st?'今日变动':'今日收益'}</div><div class="di-value ${dailyCls}">${dailySign}${fmtShow(f.daily)} 元</div></div>
+      </div>
+      <div class="detail-aux">
+        <div class="da-item"><div class="da-label">${st?'年化变动':'年化收益'}</div><div class="da-value">${annualized}</div></div>
+        <div class="da-item"><div class="da-label">${st?'最新值':'最新净值'}</div><div class="da-value">${f.latestNav ? f.latestNav.toFixed(4) : '<span style="color:var(--text2)">未获取</span>'}</div></div>
+      </div>
+      ${generateSparkline(f.code, profit >= 0)}
+      <div style="margin-top:10px">
+        <div class="detail-progress-label">${st?'变动率':'收益率'}进度</div>
+        <div class="detail-progress"><div class="detail-progress-bar" style="width:${barWidth}%;background:${barColor}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // ===== Init =====
 initTheme();
