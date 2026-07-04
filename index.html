@@ -975,7 +975,7 @@
       <h4>解析结果预览 <span style="font-weight:400;color:var(--text2);font-size:11px">（可编辑修正）</span></h4>
       <div style="overflow-x:auto">
         <table class="import-preview-table">
-          <thead><tr><th>代码</th><th>名称</th><th>板块</th><th>持有金额</th><th>持有成本</th><th>持有收益</th><th>操作</th></tr></thead>
+          <thead><tr><th>代码</th><th>名称</th><th>板块</th><th>持有金额</th><th>成本净值</th><th>持有收益</th><th>操作</th></tr></thead>
           <tbody id="importPreviewBody"></tbody>
         </table>
       </div>
@@ -3129,34 +3129,50 @@ function parseFundText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const results = [];
 
-  // Label patterns for matching known fields
-  const HOLDING_LABELS = /持有金额|持仓金额|持仓市值|持有市值|市值|持有|持仓|当前市值|资产净值/;
-  const COST_LABELS = /持有成本|持仓成本|成本|买入成本|累计投入|投入成本/;
-  const PROFIT_LABELS = /持有收益|持仓收益|累计收益|收益|盈亏|持有盈亏|浮动盈亏|未实现收益/;
+  // === Label classification via longest-match-wins scoring ===
+  // Each keyword scores by its length. A line's category = highest scoring keyword found.
+  // This prevents "持有" (2) from winning when "持有金额" (4) is present.
+  const HOLDING_KW = ['持有金额','持仓金额','持仓市值','持有市值','当前市值','资产净值','市值','持仓','持有'];
+  const COST_KW = ['持有成本','持仓成本','买入成本','累计投入','投入成本','成本'];
+  const PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益','今日收益','昨日收益','收益','盈亏'];
+  const COSTNAV_KW = ['成本净值','成本价','持仓成本价','买入均价','单位成本'];
 
-  // Extract a number from a string after removing fund codes
+  function classifyLine(line) {
+    let best = { cat: null, score: 0 };
+    for (const kw of HOLDING_KW) {
+      if (line.includes(kw) && kw.length > best.score) best = { cat: 'holding', score: kw.length };
+    }
+    for (const kw of COST_KW) {
+      if (line.includes(kw) && kw.length > best.score) best = { cat: 'cost', score: kw.length };
+    }
+    for (const kw of PROFIT_KW) {
+      if (line.includes(kw) && kw.length > best.score) best = { cat: 'profit', score: kw.length };
+    }
+    for (const kw of COSTNAV_KW) {
+      if (line.includes(kw) && kw.length + 0.5 > best.score) best = { cat: 'costNav', score: kw.length + 0.5 };
+    }
+    return best.cat;
+  }
+
   function extractNum(s) {
     const cleaned = s.replace(/\d{6}/g, ' ');
     const matches = [...cleaned.matchAll(/[-]?\d[\d,]*\.?\d*/g)];
     return matches.map(m => parseFloat(m[0].replace(/,/g, ''))).filter(n => !isNaN(n) && n !== 0);
   }
 
-  // Check if string looks like a fund name
   function isFundName(s) {
     s = s.trim();
     if (s.length < 2 || s.length > 30) return false;
     if (!/[\u4e00-\u9fa5]/.test(s)) return false;
     const digits = (s.match(/\d/g) || []).length;
     if (digits > s.length * 0.3) return false;
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回)/.test(s)) return false;
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收)/.test(s)) return false;
     if (/^[-=|]+$/.test(s)) return false;
     return true;
   }
 
-  // Extract fund name from a string
   function extractName(s) {
     s = s.trim();
-    // Prefer matches with fund type suffix
     const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,25}(?:混合|指数|ETF联接|ETF|联接|LOF|股票|增强|债券|QDII|FOF|基金)[A-Za-z]?)/);
     if (withSuffix) return withSuffix[1];
     const cnMatch = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30})/);
@@ -3164,119 +3180,102 @@ function parseFundText(text) {
     return '';
   }
 
-  // Find all 6-digit fund codes and their positions
+  // Find all 6-digit fund codes
   const codePositions = [];
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/(\d{6})/);
     if (m) codePositions.push({ lineIdx: i, code: m[1], matchIdx: m.index });
   }
 
-  // For each fund code, determine its "block" of lines (from this code to the next code)
   for (let ci = 0; ci < codePositions.length; ci++) {
     const cp = codePositions[ci];
-    const blockStart = cp.lineIdx;
-    const blockEnd = (ci + 1 < codePositions.length) ? codePositions[ci + 1].lineIdx - 1 : lines.length - 1;
-    // Also include a few lines before the code for the name
     const searchStart = Math.max(0, (ci > 0 ? codePositions[ci - 1].lineIdx + 2 : 0));
-    const searchEnd = blockEnd;
+    const blockEnd = (ci + 1 < codePositions.length) ? codePositions[ci + 1].lineIdx - 1 : lines.length - 1;
 
-    // Collect all text in the block
     const blockLines = [];
-    for (let j = searchStart; j <= searchEnd; j++) {
-      blockLines.push({ idx: j, text: lines[j] });
-    }
+    for (let j = searchStart; j <= blockEnd; j++) blockLines.push(lines[j]);
 
     // 1. Extract fund name
     let name = '';
-    // Try same line as code (before or after)
     const codeLine = lines[cp.lineIdx];
     const beforeCode = codeLine.slice(0, cp.matchIdx).trim();
     const afterCode = codeLine.slice(cp.matchIdx + 6).trim();
     name = extractName(afterCode) || extractName(beforeCode);
-
-    // Try lines just before the code
     if (!name) {
       for (let j = cp.lineIdx - 1; j >= Math.max(searchStart, cp.lineIdx - 3); j--) {
         if (/\d{6}/.test(lines[j])) break;
-        const candidate = extractName(lines[j]);
-        if (candidate) { name = candidate; break; }
+        const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
-    // Try lines just after the code
     if (!name) {
-      for (let j = cp.lineIdx + 1; j <= Math.min(searchEnd, cp.lineIdx + 2); j++) {
+      for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 2); j++) {
         if (/\d{6}/.test(lines[j])) break;
-        const candidate = extractName(lines[j]);
-        if (candidate) { name = candidate; break; }
+        const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
     if (!name) name = '基金' + cp.code;
 
-    // 2. Extract labeled numbers from the block
-    let holding = 0, cost = 0, profit = 0;
-    let foundHolding = false, foundCost = false, foundProfit = false;
+    // 2. Classify each line and extract labeled values
+    let holding = 0, cost = 0, profit = 0, costNav = 0;
+    let foundHolding = false, foundCost = false, foundProfit = false, foundCostNav = false;
+    const allKw = [...COSTNAV_KW, ...HOLDING_KW, ...COST_KW, ...PROFIT_KW].sort((a, b) => b.length - a.length);
 
-    for (const bl of blockLines) {
-      const lt = bl.text;
-      // Check for holding label
-      if (!foundHolding && HOLDING_LABELS.test(lt)) {
-        const nums = extractNum(lt.replace(HOLDING_LABELS, ''));
-        if (nums.length > 0) { holding = Math.abs(nums[nums.length - 1]); foundHolding = true; }
+    for (const lt of blockLines) {
+      const cat = classifyLine(lt);
+      if (!cat) continue;
+      // Remove the matched keyword to isolate the value
+      let valueStr = lt;
+      for (const kw of allKw) {
+        if (valueStr.includes(kw)) { valueStr = valueStr.replace(kw, ''); break; }
       }
-      // Check for cost label
-      if (!foundCost && COST_LABELS.test(lt)) {
-        const nums = extractNum(lt.replace(COST_LABELS, ''));
-        if (nums.length > 0) { cost = Math.abs(nums[nums.length - 1]); foundCost = true; }
-      }
-      // Check for profit label
-      if (!foundProfit && PROFIT_LABELS.test(lt)) {
-        const nums = extractNum(lt.replace(PROFIT_LABELS, ''));
-        if (nums.length > 0) { profit = nums[nums.length - 1]; foundProfit = true; }
+      const nums = extractNum(valueStr);
+      if (nums.length === 0) continue;
+      const val = nums[nums.length - 1];
+
+      if (cat === 'costNav' && !foundCostNav && Math.abs(val) < 100) {
+        costNav = Math.abs(val); foundCostNav = true;
+      } else if (cat === 'holding' && !foundHolding) {
+        holding = Math.abs(val); foundHolding = true;
+      } else if (cat === 'cost' && !foundCost) {
+        cost = Math.abs(val); foundCost = true;
+      } else if (cat === 'profit' && !foundProfit) {
+        profit = val; foundProfit = true;
       }
     }
 
-    // 3. If labels didn't find everything, use positional heuristic on remaining numbers
+    // 3. Heuristic fallback for unlabeled numbers
     if (!foundHolding || !foundCost) {
-      // Collect all numbers from the block (excluding codes and already-matched values)
       const allNums = [];
-      for (const bl of blockLines) {
-        const nums = extractNum(bl.text);
-        for (const n of nums) {
-          // Skip if this number was already matched by a label
+      for (const lt of blockLines) {
+        if (classifyLine(lt)) continue;
+        for (const n of extractNum(lt)) {
           if (foundHolding && Math.abs(n) === holding) continue;
           if (foundCost && Math.abs(n) === cost) continue;
-          if (foundProfit && Math.abs(n) === Math.abs(profit)) continue;
+          if (foundCostNav && Math.abs(n) === costNav) continue;
           allNums.push(n);
         }
       }
-
-      // Filter: for holding/cost, prefer larger absolute values (>= 100)
       const bigNums = allNums.filter(n => Math.abs(n) >= 100);
-      const candidates = bigNums.length >= 2 ? bigNums : allNums;
-
-      if (!foundHolding && !foundCost && candidates.length >= 2) {
-        // Sort by absolute value descending: largest = holding, second = cost
-        const sorted = [...candidates].sort((a, b) => Math.abs(b) - Math.abs(a));
-        holding = Math.abs(sorted[0]);
-        cost = Math.abs(sorted[1]);
-      } else if (!foundHolding && candidates.length === 1) {
-        holding = Math.abs(candidates[0]);
-      } else if (!foundCost && !foundHolding && candidates.length >= 1) {
-        const sorted = [...candidates].sort((a, b) => Math.abs(b) - Math.abs(a));
-        holding = Math.abs(sorted[0]);
-        if (sorted.length >= 2) cost = Math.abs(sorted[1]);
+      const cands = bigNums.length >= 2 ? bigNums : allNums;
+      if (!foundHolding && !foundCost && cands.length >= 2) {
+        const sorted = [...cands].sort((a, b) => Math.abs(b) - Math.abs(a));
+        holding = Math.abs(sorted[0]); cost = Math.abs(sorted[1]);
+      } else if (!foundHolding && cands.length === 1) {
+        holding = Math.abs(cands[0]);
       }
     }
 
-    // 4. If we have holding and cost but no profit, calculate it
+    // 4. Derive cost from holding and profit if needed
+    if (!foundCost && foundHolding && foundProfit) {
+      cost = holding - profit;
+    }
     if (!foundProfit && holding > 0 && cost > 0) {
       profit = holding - cost;
     }
 
     const sector = guessSector(name);
     const subSector = guessSubSector(name, sector);
-
-    results.push({ code: cp.code, name, sector, subSector, holding, cost, profit });
+    results.push({ code: cp.code, name, sector, subSector, holding, cost, profit, costNav });
   }
 
   return results;
@@ -3389,11 +3388,9 @@ function handleScreenshotUpload(file) {
 
 function renderImportPreview(results) {
   const tbody = document.getElementById('importPreviewBody');
-  const sectorOpts = Object.keys(SECTOR_COLORS).map(s => `<option value="${s}">${s}</option>`).join('');
   tbody.innerHTML = results.map((r, i) => {
-    const profit = r.profit || (r.holding - r.cost);
-    const profitClass = profit >= 0 ? 'positive' : 'negative';
-    const profitStr = profit >= 0 ? '+' + profit.toFixed(2) : profit.toFixed(2);
+    const profit = r.profit || ((r.holding || 0) - (r.cost || 0));
+    const costNavVal = r.costNav || 0;
     return `<tr data-idx="${i}">
       <td><input value="${r.code}" onchange="importParsedData[${i}].code=this.value" style="width:70px"></td>
       <td><input value="${r.name}" onchange="importParsedData[${i}].name=this.value"></td>
@@ -3401,7 +3398,7 @@ function renderImportPreview(results) {
         ${Object.keys(SECTOR_COLORS).map(s => `<option value="${s}"${s===r.sector?' selected':''}>${s}</option>`).join('')}
       </select></td>
       <td><input type="number" value="${r.holding}" onchange="importParsedData[${i}].holding=parseFloat(this.value)||0" style="width:90px"></td>
-      <td><input type="number" value="${r.cost}" onchange="importParsedData[${i}].cost=parseFloat(this.value)||0" style="width:90px"></td>
+      <td><input type="number" step="0.0001" value="${costNavVal.toFixed(4)}" onchange="importParsedData[${i}].costNav=parseFloat(this.value)||0" style="width:90px"></td>
       <td><input type="number" value="${profit.toFixed(2)}" onchange="importParsedData[${i}].profit=parseFloat(this.value)||0" style="width:90px;color:${profit>=0?'var(--red)':'var(--green)'};font-weight:600"></td>
       <td><button class="imp-del" onclick="importParsedData.splice(${i},1);renderImportPreview(importParsedData)" title="删除此行">✕</button></td>
     </tr>`;
@@ -3415,12 +3412,19 @@ function confirmImport() {
   let added = 0, skipped = 0;
   for (const r of importParsedData) {
     if (!r.code || !r.name || !r.holding) { skipped++; continue; }
+    // Derive cost if needed: cost = holding - profit
+    let cost = r.cost || 0;
+    if (!cost && r.costNav && r.holding) {
+      // If we have costNav and profit, derive total cost
+      const profit = r.profit || 0;
+      cost = r.holding - profit;
+    }
     // Check if fund already exists
     const existIdx = funds.findIndex(f => f.code === r.code);
     if (existIdx >= 0) {
-      // Update existing fund
       funds[existIdx].holding = r.holding;
-      if (r.cost) funds[existIdx].cost = r.cost;
+      if (cost) funds[existIdx].cost = cost;
+      if (r.costNav) funds[existIdx].costNav = r.costNav;
       if (r.sector) funds[existIdx].sector = r.sector;
       if (r.subSector) funds[existIdx].subSector = r.subSector;
       skipped++;
@@ -3430,8 +3434,8 @@ function confirmImport() {
         name: r.name, code: r.code,
         sector: r.sector || guessSector(r.name),
         subSector: r.subSector || guessSubSector(r.name, r.sector || guessSector(r.name)),
-        holding: r.holding, cost: r.cost || 0,
-        costNav: 0, daily: 0, buyDate: ''
+        holding: r.holding, cost: cost,
+        costNav: r.costNav || 0, daily: 0, buyDate: ''
       });
       fundOrder.push(r.code);
       added++;
