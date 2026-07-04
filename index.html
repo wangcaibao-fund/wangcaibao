@@ -999,6 +999,8 @@
 
 <script>
 // ===== Constants =====
+const DATA_VERSION = '2';
+const VERSION_KEY = 'fund_dashboard_version';
 const STORAGE_KEY = 'fund_dashboard_data';
 const HISTORY_KEY = 'fund_dashboard_history';
 const TX_KEY = 'fund_dashboard_transactions';
@@ -1065,17 +1067,25 @@ function saveData() {
 }
 function loadData() {
   try {
+    const ver = localStorage.getItem(VERSION_KEY);
+    if (ver !== DATA_VERSION) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(HISTORY_KEY);
+      localStorage.removeItem(TX_KEY);
+      localStorage.removeItem(ORDER_KEY);
+      localStorage.setItem(VERSION_KEY, DATA_VERSION);
+    }
     const d = localStorage.getItem(STORAGE_KEY);
     const h = localStorage.getItem(HISTORY_KEY);
     const t = localStorage.getItem(TX_KEY);
     const o = localStorage.getItem(ORDER_KEY);
     if (d) funds = JSON.parse(d);
-    else funds = JSON.parse(JSON.stringify(DEFAULT_FUNDS));
+    else funds = [];
     if (h) history = JSON.parse(h); else history = [];
     if (t) transactions = JSON.parse(t); else transactions = [];
     if (o) fundOrder = JSON.parse(o); else fundOrder = [];
   } catch(e) {
-    funds = JSON.parse(JSON.stringify(DEFAULT_FUNDS));
+    funds = [];
     history = []; transactions = []; fundOrder = [];
   }
 }
