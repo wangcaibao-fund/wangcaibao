@@ -3202,13 +3202,10 @@ function parseFundText(text) {
   const SHARES_KW = ['可用份额','持有份额','份额','可用'];
 
   function classifyLine(line) {
-    // First check if line is about shares — if so, skip it entirely
-    for (const kw of SHARES_KW) {
-      if (line.includes(kw)) return 'shares';
-    }
     // Reject rate/percentage lines (e.g., "持有收益率", "昨日收益率")
-    // These contain rate keywords but the value is a percentage, not an amount
-    if (/率$/.test(line)) return null;
+    // Check for "收益率" substring to handle OCR noise (e.g., "持有收益率中")
+    if (/收益率/.test(line)) return null;
+    // Unified longest-match-wins across ALL categories
     let best = { cat: null, score: 0 };
     for (const kw of HOLDING_KW) {
       if (line.includes(kw) && kw.length > best.score) best = { cat: 'holding', score: kw.length };
@@ -3221,6 +3218,9 @@ function parseFundText(text) {
     }
     for (const kw of COSTNAV_KW) {
       if (line.includes(kw) && kw.length + 0.5 > best.score) best = { cat: 'costNav', score: kw.length + 0.5 };
+    }
+    for (const kw of SHARES_KW) {
+      if (line.includes(kw) && kw.length + 0.3 > best.score) best = { cat: 'shares', score: kw.length + 0.3 };
     }
     return best.cat;
   }
@@ -3237,7 +3237,7 @@ function parseFundText(text) {
     if (!/[\u4e00-\u9fa5]/.test(s)) return false;
     const digits = (s.match(/\d/g) || []).length;
     if (digits > s.length * 0.3) return false;
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用|买入|浮动|今日|资产|负债|可用|在途|冻结|分红|定投|风险|等级|合同|开户|登记|托管|管理|销售|费率|份额|登记|万份|七日|年化|单位|累计|净值|公告|估值|清算|交割|到账|中风险|低风险|高风险|中低风险|中高风险)/.test(s)) return false;
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用|买入|浮动|今日|资产|负债|可用|在途|冻结|分红|定投|风险|等级|合同|开户|登记|托管|管理|销售|费率|份额|登记|万份|七日|年化|单位|累计|净值|公告|估值|清算|交割|到账|详情|全到)/.test(s)) return false;
     // Reject risk-level labels (e.g., "中风险", "低风险")
     if (/风险/.test(s)) return false;
     if (/^[-=|]+$/.test(s)) return false;
@@ -3274,33 +3274,36 @@ function parseFundText(text) {
     const blockLines = [];
     for (let j = searchStart; j <= blockEnd; j++) blockLines.push(lines[j]);
 
-    // 1. Extract fund name — search broadly (use stripped lines for keyword matching)
+    // 1. Extract fund name — search surrounding lines (NOT the code line itself, which has OCR noise)
     let name = '';
-    const codeLine = strippedLines[cp.lineIdx];
-    // Try full line first (name might be anywhere on the code line)
-    name = extractName(codeLine.replace(/\d{6}/g, ' ').trim());
-    if (!name) {
-      const beforeCode = codeLine.slice(0, cp.matchIdx).trim();
-      const afterCode = codeLine.slice(cp.matchIdx + 6).trim();
-      name = extractName(afterCode) || extractName(beforeCode);
+    // Priority 1: line directly above the code (Alipay layout: name is right above code)
+    if (cp.lineIdx > 0) {
+      const aboveLine = strippedLines[cp.lineIdx - 1];
+      if (!/\d{6}/.test(aboveLine) && !classifyLine(aboveLine)) {
+        name = extractName(aboveLine);
+      }
     }
-    // Search above — skip code lines and label lines, don't break
-    // Don't limit by searchStart — name may be at top of screenshot
+    // Priority 2: search further above — skip code lines and label lines
     if (!name) {
       const nameSearchTop = ci > 0 ? codePositions[ci - 1].lineIdx + 1 : 0;
-      for (let j = cp.lineIdx - 1; j >= nameSearchTop; j--) {
+      for (let j = cp.lineIdx - 2; j >= nameSearchTop; j--) {
         if (/\d{6}/.test(strippedLines[j])) continue;
         if (classifyLine(strippedLines[j])) continue; // skip label lines
         const c = extractName(strippedLines[j]); if (c) { name = c; break; }
       }
     }
-    // Search below — skip code lines and label lines
+    // Priority 3: search below — skip code lines and label lines
     if (!name) {
       for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 3); j++) {
         if (/\d{6}/.test(strippedLines[j])) continue;
         if (classifyLine(strippedLines[j])) continue; // skip label lines
         const c = extractName(strippedLines[j]); if (c) { name = c; break; }
       }
+    }
+    // Priority 4: last resort — try the code line itself (strip code and noise)
+    if (!name) {
+      const codeLine = strippedLines[cp.lineIdx];
+      name = extractName(codeLine.replace(/\d{6}/g, ' ').trim());
     }
     if (!name) name = '基金' + cp.code;
 
@@ -3346,8 +3349,22 @@ function parseFundText(text) {
       if (nums.length === 0 && li + 1 < blockLines.length && !usedLines.has(li + 1)) {
         const nextStripped = strippedLines[searchStart + li + 1];
         if (!classifyLine(nextStripped)) {
-          nums = extractNum(nextStripped);
-          if (nums.length > 0) usedLines.add(li + 1);
+          const nextNums = extractNum(nextStripped);
+          if (nextNums.length > 0) {
+            // Multi-column layout: labels on this line, values on next line
+            // Match by position: count labeled keywords before current one
+            if (nextNums.length > 1 && kwPos >= 0) {
+              let colIdx = 0;
+              for (const kw of allKw) {
+                const idx = ltS.indexOf(kw);
+                if (idx >= 0 && idx < kwPos) colIdx++;
+              }
+              nums = colIdx < nextNums.length ? [nextNums[colIdx]] : [nextNums[0]];
+            } else {
+              nums = [nextNums[0]];
+            }
+            usedLines.add(li + 1);
+          }
         }
       }
       if (nums.length === 0) continue;
