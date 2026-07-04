@@ -1010,7 +1010,8 @@ const ORDER_KEY = 'fund_dashboard_order';
 const SECTOR_COLORS = {
   "消费":"#d4727c","医药":"#5ba8b5","科技":"#9b85c4","新能源":"#6dae7a",
   "金融":"#c9a96e","制造":"#7a8a96","军工":"#6889b4","债券":"#9a9a9a",
-  "港股":"#c47a9e","美股":"#5aaa9a","综合":"#8484b8"
+  "港股":"#c47a9e","美股":"#5aaa9a","综合":"#8484b8",
+  "黄金":"#d4a017","有色金属":"#b08040","锂矿":"#6aaa6a","白银":"#a8a8a8"
 };
 const SUB_SECTORS = {
   "消费":["白酒","食品饮料","免税零售","家电","其他消费"],
@@ -1023,7 +1024,11 @@ const SUB_SECTORS = {
   "债券":["中短债","信用债","利率债","可转债"],
   "港股":["H股/红筹","互联网","创新药(港)","其他港股"],
   "美股":["纳斯达克科技","标普500","生物医药(美)","其他美股"],
-  "综合":["宽基指数","行业轮动","多策略","其他综合"]
+  "综合":["宽基指数","行业轮动","多策略","其他综合"],
+  "黄金":["黄金ETF","黄金矿业","其他黄金"],
+  "有色金属":["铜铝","稀有金属","其他有色"],
+  "锂矿":["锂矿开采","锂盐加工","其他锂矿"],
+  "白银":["白银ETF","白银矿业","其他白银"]
 };
 const SUB_SECTOR_COLORS = {
   "白酒":"#c4606a","食品饮料":"#d4727c","免税零售":"#d98090","家电":"#e09aa0","其他消费":"#d98090",
@@ -1036,7 +1041,11 @@ const SUB_SECTOR_COLORS = {
   "中短债":"#6a6a6a","信用债":"#808080","利率债":"#9a9a9a","可转债":"#808080",
   "H股/红筹":"#b06a84","互联网":"#c47a9e","创新药(港)":"#b06a84","其他港股":"#a05a74",
   "纳斯达克科技":"#4a8a80","标普500":"#5aaa9a","生物医药(美)":"#3a7a70","其他美股":"#2a6a60",
-  "宽基指数":"#6a6aa4","行业轮动":"#7a7ab4","多策略":"#8484b8","其他综合":"#7a7ab4"
+  "宽基指数":"#6a6aa4","行业轮动":"#7a7ab4","多策略":"#8484b8","其他综合":"#7a7ab4",
+  "黄金ETF":"#d4a017","黄金矿业":"#c49010","其他黄金":"#b48a10",
+  "铜铝":"#b08040","稀有金属":"#a07030","其他有色":"#907030",
+  "锂矿开采":"#5a9a5a","锂盐加工":"#6aaa6a","其他锂矿":"#5a9a5a",
+  "白银ETF":"#a8a8a8","白银矿业":"#989898","其他白银":"#888888"
 };
 const MAX_FUNDS = 15;
 const LINE_COLORS = [
@@ -3083,6 +3092,10 @@ const SECTOR_KEYWORDS = {
   "债券":["债券","国债","利率","信用债","纯债"],
   "港股":["恒生","港股","H股","港交所"],
   "美股":["纳斯达克","标普","美股","道琼斯","美国"],
+  "黄金":["黄金","贵金属","金价","金ETF","金矿"],
+  "有色金属":["有色","铜","铝","稀有金属","金属"],
+  "锂矿":["锂矿","锂盐","碳酸锂","锂"],
+  "白银":["白银","银ETF","银矿"],
   "综合":["沪深300","中证500","中证1000","上证50","指数","创业板","科创板","宽基"]
 };
 
@@ -3105,6 +3118,10 @@ function guessSubSector(name, sector) {
     "军工":{"军工":"军工","航天":"航天","国防":"军工"},
     "港股":{"恒生":"恒生","港股":"港股"},
     "美股":{"纳斯达克":"纳斯达克","标普":"标普"},
+    "黄金":{"金ETF":"黄金ETF","黄金ETF":"黄金ETF","金矿":"黄金矿业","黄金":"黄金ETF"},
+    "有色金属":{"铜":"铜铝","铝":"铜铝","有色":"其他有色","稀有金属":"稀有金属"},
+    "锂矿":{"锂矿":"锂矿开采","锂盐":"锂盐加工","碳酸锂":"锂盐加工","锂":"锂矿开采"},
+    "白银":{"银ETF":"白银ETF","白银ETF":"白银ETF","银矿":"白银矿业","白银":"白银ETF"},
     "综合":{"沪深300":"沪深300","中证500":"中证500","上证50":"上证50","指数":"指数"}
   };
   const subMap = map[sector] || {};
@@ -3118,53 +3135,134 @@ function guessSubSector(name, sector) {
 function parseFundText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const results = [];
+  const usedLines = new Set();
 
-  for (const line of lines) {
-    // Skip header lines
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|序号|#)/.test(line) || /^[-=|]+$/.test(line)) continue;
+  // Fund name pattern: Chinese chars (2-30) possibly followed by fund type suffixes
+  const FUND_NAME_RE = /[\u4e00-\u9fa5A-Za-z]{2,30}/;
+  const FUND_TYPE_SUFFIX = /(?:混合|指数|ETF|联接|LOF|股票|增强|灵活|定期|货币|债券|QDII|FOF|基金|A|C|E)$/;
 
-    // Try to find a 6-digit fund code
-    const codeMatch = line.match(/(\d{6})/);
-    if (!codeMatch) continue;
-    const code = codeMatch[1];
+  // Check if a line looks like a fund name (mostly Chinese chars, possibly with fund type ending)
+  function looksLikeFundName(s) {
+    s = s.trim();
+    if (s.length < 2 || s.length > 30) return false;
+    // Must contain Chinese characters
+    if (!/[\u4e00-\u9fa5]/.test(s)) return false;
+    // Should not be mostly numbers
+    const digitCount = (s.match(/\d/g) || []).length;
+    if (digitCount > s.length * 0.3) return false;
+    // Should not be a header/label line
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作)/.test(s)) return false;
+    return true;
+  }
 
-    // Extract fund name: Chinese characters (and some English) around the code
-    let name = '';
-    const beforeCode = line.slice(0, codeMatch.index).trim();
-    const afterCode = line.slice(codeMatch.index + 6).trim();
+  // Extract fund name from a string, preferring strings that end with fund type suffixes
+  function extractName(s) {
+    s = s.trim();
+    // Try to find a substring that looks like a fund name with type suffix
+    const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,25}(?:混合|指数|ETF联接|ETF|联接|LOF|股票|增强|债券|QDII|FOF|基金)[A-Za-z]?)/);
+    if (withSuffix) return withSuffix[1];
+    // Otherwise take the longest Chinese char sequence
+    const cnMatch = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30})/);
+    if (cnMatch && looksLikeFundName(cnMatch[1])) return cnMatch[1];
+    return '';
+  }
 
-    // Name is usually before or after the code
-    const nameMatch = line.match(/([\u4e00-\u9fa5A-Za-z]{2,20}(?:混合|指数|ETF|联接|LOF|股票|增强|灵活|定期|货币|债券|QDII|FOF|基金)*)/);
-    if (nameMatch) {
-      name = nameMatch[1];
-    } else {
-      // Try Chinese chars before/after code
-      const cnBefore = beforeCode.match(/([\u4e00-\u9fa5A-Za-z]{2,20})/);
-      const cnAfter = afterCode.match(/([\u4e00-\u9fa5A-Za-z]{2,20})/);
-      name = cnAfter ? cnAfter[1] : (cnBefore ? cnBefore[1] : '');
-    }
-    if (!name) continue;
-
-    // Extract numbers (amounts, percentages)
-    const numStr = line.replace(/[\d]{6}/, '').replace(name, '');
-    const numbers = [];
-    const numMatches = numStr.matchAll(/[-]?[\d,]+\.?\d*/g);
-    for (const m of numMatches) {
+  // Extract numbers from a string (amounts, not percentages)
+  function extractNumbers(s) {
+    const cleaned = s.replace(/\d{6}/g, ''); // remove fund codes
+    const nums = [];
+    const matches = cleaned.matchAll(/[-]?[\d,]+\.?\d*/g);
+    for (const m of matches) {
       const val = parseFloat(m[0].replace(/,/g, ''));
-      if (!isNaN(val) && val !== 0) numbers.push(val);
+      if (!isNaN(val) && val !== 0) nums.push(val);
+    }
+    return nums;
+  }
+
+  // First pass: find all lines containing 6-digit fund codes
+  const codeLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const codeMatch = lines[i].match(/(\d{6})/);
+    if (codeMatch) {
+      codeLines.push({ index: i, code: codeMatch[1], matchIndex: codeMatch.index });
+    }
+  }
+
+  // Second pass: for each code line, gather name and numbers
+  for (const cl of codeLines) {
+    const line = lines[cl.index];
+    let name = '';
+    let allNumStr = '';
+
+    // Try to extract name from the same line
+    const beforeCode = line.slice(0, cl.matchIndex).trim();
+    const afterCode = line.slice(cl.matchIndex + 6).trim();
+
+    // Remove the code from line for number extraction
+    allNumStr = line.replace(/\d{6}/, '');
+
+    // Try name from parts of the same line
+    name = extractName(afterCode) || extractName(beforeCode);
+
+    // If no name found on same line, look at adjacent lines
+    if (!name) {
+      // Check previous line(s) - name is often above the code
+      for (let j = cl.index - 1; j >= Math.max(0, cl.index - 3); j--) {
+        if (usedLines.has(j)) continue;
+        const prevLine = lines[j];
+        // Skip if this line has a code (it belongs to another fund)
+        if (/\d{6}/.test(prevLine)) break;
+        // Skip header/label lines
+        if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额)/.test(prevLine)) continue;
+        if (/^[-=|]+$/.test(prevLine)) continue;
+        const candidate = extractName(prevLine);
+        if (candidate) { name = candidate; break; }
+      }
+      // If still no name, check next line
+      if (!name && cl.index + 1 < lines.length) {
+        const nextLine = lines[cl.index + 1];
+        if (!/\d{6}/.test(nextLine)) {
+          const candidate = extractName(nextLine);
+          if (candidate) name = candidate;
+        }
+      }
     }
 
-    // Heuristic: first large number = holding, second = cost, percentage might be return rate
+    // If still no name, use code as placeholder
+    if (!name) {
+      name = '基金' + cl.code;
+    }
+
+    // Gather numbers from adjacent lines too (for multi-line card format)
+    for (let j = Math.max(0, cl.index - 2); j <= Math.min(lines.length - 1, cl.index + 5); j++) {
+      if (j === cl.index) continue;
+      const adjLine = lines[j];
+      // Stop if we hit another fund's code
+      if (/\d{6}/.test(adjLine) && j !== cl.index) break;
+      allNumStr += ' ' + adjLine.replace(/\d{6}/, '');
+    }
+
+    // Remove name from number string
+    if (name) allNumStr = allNumStr.replace(name, '');
+
+    const numbers = extractNumbers(allNumStr);
+
+    // Heuristic: find holding and cost from numbers
     let holding = 0, cost = 0;
-    if (numbers.length >= 2) {
-      // Find the two largest numbers (likely holding and cost)
+    // Filter out small numbers that are likely percentages or net values
+    const bigNums = numbers.filter(n => Math.abs(n) >= 100);
+    const smallNums = numbers.filter(n => Math.abs(n) < 100);
+
+    if (bigNums.length >= 2) {
+      const sorted = [...bigNums].sort((a, b) => Math.abs(b) - Math.abs(a));
+      holding = Math.abs(sorted[0]);
+      cost = Math.abs(sorted[1]);
+    } else if (bigNums.length === 1) {
+      holding = Math.abs(bigNums[0]);
+    } else if (numbers.length >= 2) {
       const sorted = [...numbers].sort((a, b) => Math.abs(b) - Math.abs(a));
       holding = Math.abs(sorted[0]);
       cost = Math.abs(sorted[1]);
-      // If one looks like a percentage (< 100 and there are bigger numbers), skip it
-      if (cost < 100 && numbers.length > 2) {
-        cost = Math.abs(sorted[2]) || 0;
-      }
     } else if (numbers.length === 1) {
       holding = Math.abs(numbers[0]);
     }
@@ -3172,8 +3270,9 @@ function parseFundText(text) {
     const sector = guessSector(name);
     const subSector = guessSubSector(name, sector);
 
-    results.push({ code, name, sector, subSector, holding, cost });
+    results.push({ code: cl.code, name, sector, subSector, holding, cost });
   }
+
   return results;
 }
 
