@@ -972,6 +972,12 @@
         <div class="import-progress-bar"><div id="importProgressBar"></div></div>
       </div>
       <div class="import-error" id="importOcrError"></div>
+      <div id="ocrDebug" style="display:none;margin-top:10px">
+        <details>
+          <summary style="cursor:pointer;font-size:12px;color:var(--text2)">查看OCR识别原文（调试用）</summary>
+          <textarea id="ocrDebugText" readonly style="width:100%;height:180px;margin-top:6px;font-size:12px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--calc-bg);color:var(--text);resize:vertical"></textarea>
+        </details>
+      </div>
     </div>
     <div class="import-preview" id="importPreview">
       <h4>解析结果预览 <span style="font-weight:400;color:var(--text2);font-size:11px">（可编辑修正）</span></h4>
@@ -3441,6 +3447,8 @@ function handleScreenshotUpload(file) {
 
   errEl.classList.remove('show');
   progressEl.classList.add('show');
+  document.getElementById('ocrDebug').style.display = 'none';
+  document.getElementById('ocrDebugText').value = '';
   progressText.textContent = '正在加载识别引擎...';
   progressBar.style.width = '10%';
 
@@ -3472,6 +3480,9 @@ function handleScreenshotUpload(file) {
     .then(({ data: { text } }) => {
       progressBar.style.width = '100%';
       progressText.textContent = '识别完成，正在解析...';
+      // Show raw OCR text for debugging
+      document.getElementById('ocrDebug').style.display = 'block';
+      document.getElementById('ocrDebugText').value = text;
       setTimeout(() => {
         progressEl.classList.remove('show');
         const results = parseFundText(text);
