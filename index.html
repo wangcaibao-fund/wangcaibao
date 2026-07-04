@@ -3189,6 +3189,8 @@ function guessSubSector(name, sector) {
 // Parse fund text into array of fund objects
 function parseFundText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // Strip ALL whitespace for keyword matching — Tesseract inserts spaces between Chinese chars
+  const strippedLines = lines.map(l => l.replace(/\s+/g, ''));
   const results = [];
 
   // === Label classification via longest-match-wins scoring ===
@@ -3241,17 +3243,21 @@ function parseFundText(text) {
 
   function extractName(s) {
     s = s.trim();
-    const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30}(?:混合|指数|ETF联接|ETF|联接|LOF|股票|增强|债券|QDII|FOF|基金|配置|产业|主题|精选|成长|价值|红利|龙头|量化|智能|优选|回报|灵活|沪深|中证|创业板|科创板)[A-Za-z]?)/);
+    // Try compound suffix first (e.g., "国泰黄金ETF联接A")
+    const compound = s.match(/([\u4e00-\u9fa5]{2,20}(?:ETF联接|ETF连接|ETF联接[A-Za-z]|ETF连接[A-Za-z]|ETF)[A-Za-z]?)/);
+    if (compound) return compound[1];
+    // Try simple suffix
+    const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30}(?:混合|指数|联接|连接|LOF|股票|增强|债券|QDII|FOF|基金|配置|产业|主题|精选|成长|价值|红利|龙头|量化|智能|优选|回报|灵活|沪深|中证|创业板|科创板)[A-Za-z]?)/);
     if (withSuffix) return withSuffix[1];
     const cnMatch = s.match(/([\u4e00-\u9fa5][\u4e00-\u9fa5A-Za-z\s]{1,25})/);
     if (cnMatch && isFundName(cnMatch[1].trim())) return cnMatch[1].trim();
     return '';
   }
 
-  // Find all 6-digit fund codes
+  // Find all 6-digit fund codes (use stripped lines to handle OCR spaces in digits)
   const codePositions = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/(\d{6})/);
+  for (let i = 0; i < strippedLines.length; i++) {
+    const m = strippedLines[i].match(/(\d{6})/);
     if (m) codePositions.push({ lineIdx: i, code: m[1], matchIdx: m.index });
   }
 
@@ -3263,9 +3269,9 @@ function parseFundText(text) {
     const blockLines = [];
     for (let j = searchStart; j <= blockEnd; j++) blockLines.push(lines[j]);
 
-    // 1. Extract fund name — search broadly
+    // 1. Extract fund name — search broadly (use stripped lines for keyword matching)
     let name = '';
-    const codeLine = lines[cp.lineIdx];
+    const codeLine = strippedLines[cp.lineIdx];
     // Try full line first (name might be anywhere on the code line)
     name = extractName(codeLine.replace(/\d{6}/g, ' ').trim());
     if (!name) {
@@ -3278,50 +3284,60 @@ function parseFundText(text) {
     if (!name) {
       const nameSearchTop = ci > 0 ? codePositions[ci - 1].lineIdx + 1 : 0;
       for (let j = cp.lineIdx - 1; j >= nameSearchTop; j--) {
-        if (/\d{6}/.test(lines[j])) continue;
-        if (classifyLine(lines[j])) continue; // skip label lines
-        const c = extractName(lines[j]); if (c) { name = c; break; }
+        if (/\d{6}/.test(strippedLines[j])) continue;
+        if (classifyLine(strippedLines[j])) continue; // skip label lines
+        const c = extractName(strippedLines[j]); if (c) { name = c; break; }
       }
     }
     // Search below — skip code lines and label lines
     if (!name) {
       for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 3); j++) {
-        if (/\d{6}/.test(lines[j])) continue;
-        if (classifyLine(lines[j])) continue; // skip label lines
-        const c = extractName(lines[j]); if (c) { name = c; break; }
+        if (/\d{6}/.test(strippedLines[j])) continue;
+        if (classifyLine(strippedLines[j])) continue; // skip label lines
+        const c = extractName(strippedLines[j]); if (c) { name = c; break; }
       }
     }
     if (!name) name = '基金' + cp.code;
 
-    // 2. Classify each line and extract labeled values
+    // 2. Classify each line and extract labeled values (use stripped for matching, original for numbers)
     let holding = 0, cost = 0, profit = 0, costNav = 0;
     let foundHolding = false, foundCost = false, foundProfit = false, foundCostNav = false;
     const allKw = [...COSTNAV_KW, ...HOLDING_KW, ...COST_KW, ...PROFIT_KW].sort((a, b) => b.length - a.length);
     const usedLines = new Set();
 
     for (let li = 0; li < blockLines.length; li++) {
-      const lt = blockLines[li];
-      const cat = classifyLine(lt);
+      const lt = blockLines[li]; // original (with spaces)
+      const ltS = strippedLines[searchStart + li]; // stripped (no spaces)
+      const cat = classifyLine(ltS);
       if (!cat || cat === 'shares') continue;
-      // Remove the matched keyword to isolate the value
-      let valueStr = lt;
+      // Find which keyword matched and its position
+      let matchedKw = '', kwPos = -1;
       for (const kw of allKw) {
-        if (valueStr.includes(kw)) { valueStr = valueStr.replace(kw, ''); break; }
+        const idx = ltS.indexOf(kw);
+        if (idx >= 0 && kw.length > matchedKw.length) { matchedKw = kw; kwPos = idx; }
       }
-      let nums = extractNum(valueStr);
-      // Cross-line: if no number on this line, check next line for the value
+      // Extract the first number AFTER the keyword position
+      let nums = [];
+      if (kwPos >= 0) {
+        const afterKw = ltS.slice(kwPos + matchedKw.length);
+        const afterNums = extractNum(afterKw);
+        if (afterNums.length > 0) nums = [afterNums[0]];
+      }
+      // Fallback: if no number after keyword, try all numbers in line
+      if (nums.length === 0) {
+        nums = extractNum(ltS);
+      }
+      // Cross-line: if still no number, check next line for the value
       if (nums.length === 0 && li + 1 < blockLines.length && !usedLines.has(li + 1)) {
-        const nextLine = blockLines[li + 1];
-        if (!classifyLine(nextLine)) {
-          nums = extractNum(nextLine);
+        const nextStripped = strippedLines[searchStart + li + 1];
+        if (!classifyLine(nextStripped)) {
+          nums = extractNum(nextStripped);
           if (nums.length > 0) usedLines.add(li + 1);
         }
       }
       if (nums.length === 0) continue;
       usedLines.add(li);
-      // For holding: use FIRST number (shares often appear after, on same line)
-      // For others: use last number
-      const val = cat === 'holding' ? nums[0] : nums[nums.length - 1];
+      const val = nums[0];
 
       if (cat === 'costNav' && !foundCostNav && Math.abs(val) < 100) {
         costNav = Math.abs(val); foundCostNav = true;
@@ -3337,11 +3353,11 @@ function parseFundText(text) {
     // 3. Heuristic fallback for unlabeled numbers (excluding shares lines)
     if (!foundHolding || !foundCost) {
       const allNums = [];
-      for (const lt of blockLines) {
-        const cat = classifyLine(lt);
-        if (cat === 'shares') continue; // explicitly skip shares
-        if (cat) continue; // skip other labeled lines
-        for (const n of extractNum(lt)) {
+      for (let li2 = 0; li2 < blockLines.length; li2++) {
+        const cat = classifyLine(strippedLines[searchStart + li2]);
+        if (cat === 'shares') continue;
+        if (cat) continue;
+        for (const n of extractNum(strippedLines[searchStart + li2])) {
           if (foundHolding && Math.abs(n) === holding) continue;
           if (foundCost && Math.abs(n) === cost) continue;
           if (foundCostNav && Math.abs(n) === costNav) continue;
