@@ -3226,8 +3226,10 @@ function parseFundText(text) {
     if (!/[\u4e00-\u9fa5]/.test(s)) return false;
     const digits = (s.match(/\d/g) || []).length;
     if (digits > s.length * 0.3) return false;
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用)/.test(s)) return false;
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用|买入|浮动|今日|资产|负债|可用|在途|冻结|分红|定投|风险|等级|合同|开户|登记|托管|管理|销售|费率|份额|登记|万份|七日|年化|单位|累计|净值|公告|估值|清算|交割|到账)/.test(s)) return false;
     if (/^[-=|]+$/.test(s)) return false;
+    // Reject if it looks like a label (ends with 价/率/额 but no fund suffix)
+    if (/(价|率|额|期|日)$/.test(s) && !/(混合|指数|ETF|联接|LOF|基金|债券|股票|增强|QDII|FOF)/.test(s)) return false;
     return true;
   }
 
@@ -3265,17 +3267,21 @@ function parseFundText(text) {
       const afterCode = codeLine.slice(cp.matchIdx + 6).trim();
       name = extractName(afterCode) || extractName(beforeCode);
     }
-    // Search above — skip code lines, don't break
+    // Search above — skip code lines and label lines, don't break
+    // Don't limit by searchStart — name may be at top of screenshot
     if (!name) {
-      for (let j = cp.lineIdx - 1; j >= Math.max(searchStart, cp.lineIdx - 5); j--) {
-        if (/\d{6}/.test(lines[j])) continue; // skip but don't break
+      const nameSearchTop = ci > 0 ? codePositions[ci - 1].lineIdx + 1 : 0;
+      for (let j = cp.lineIdx - 1; j >= nameSearchTop; j--) {
+        if (/\d{6}/.test(lines[j])) continue;
+        if (classifyLine(lines[j])) continue; // skip label lines
         const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
-    // Search below — skip code lines, don't break
+    // Search below — skip code lines and label lines
     if (!name) {
       for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 3); j++) {
-        if (/\d{6}/.test(lines[j])) continue; // skip but don't break
+        if (/\d{6}/.test(lines[j])) continue;
+        if (classifyLine(lines[j])) continue; // skip label lines
         const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
@@ -3285,17 +3291,28 @@ function parseFundText(text) {
     let holding = 0, cost = 0, profit = 0, costNav = 0;
     let foundHolding = false, foundCost = false, foundProfit = false, foundCostNav = false;
     const allKw = [...COSTNAV_KW, ...HOLDING_KW, ...COST_KW, ...PROFIT_KW].sort((a, b) => b.length - a.length);
+    const usedLines = new Set();
 
-    for (const lt of blockLines) {
+    for (let li = 0; li < blockLines.length; li++) {
+      const lt = blockLines[li];
       const cat = classifyLine(lt);
-      if (!cat || cat === 'shares') continue; // skip shares lines entirely
+      if (!cat || cat === 'shares') continue;
       // Remove the matched keyword to isolate the value
       let valueStr = lt;
       for (const kw of allKw) {
         if (valueStr.includes(kw)) { valueStr = valueStr.replace(kw, ''); break; }
       }
-      const nums = extractNum(valueStr);
+      let nums = extractNum(valueStr);
+      // Cross-line: if no number on this line, check next line for the value
+      if (nums.length === 0 && li + 1 < blockLines.length && !usedLines.has(li + 1)) {
+        const nextLine = blockLines[li + 1];
+        if (!classifyLine(nextLine)) {
+          nums = extractNum(nextLine);
+          if (nums.length > 0) usedLines.add(li + 1);
+        }
+      }
       if (nums.length === 0) continue;
+      usedLines.add(li);
       // For holding: use FIRST number (shares often appear after, on same line)
       // For others: use last number
       const val = cat === 'holding' ? nums[0] : nums[nums.length - 1];
