@@ -1293,10 +1293,24 @@ function toast(msg, duration) {
 // ===== More Menu =====
 function toggleMoreMenu(e) {
   e.stopPropagation();
-  document.getElementById('moreMenu').classList.toggle('open');
+  const menu = document.getElementById('moreMenu');
+  const isOpen = menu.classList.contains('open');
+  if (isOpen) { closeMoreMenu(); return; }
+  // Use fixed positioning to avoid overflow clipping on mobile
+  const rect = e.currentTarget.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (rect.bottom + 6) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  menu.style.left = 'auto';
+  menu.classList.add('open');
 }
 function closeMoreMenu() {
-  document.getElementById('moreMenu').classList.remove('open');
+  const menu = document.getElementById('moreMenu');
+  menu.classList.remove('open');
+  menu.style.position = '';
+  menu.style.top = '';
+  menu.style.right = '';
+  menu.style.left = '';
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.more-wrap')) closeMoreMenu();
