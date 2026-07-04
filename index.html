@@ -1291,30 +1291,46 @@ function toast(msg, duration) {
 }
 
 // ===== More Menu =====
+var _moreMenuOriginalParent = null;
+var _moreMenuOriginalNext = null;
 function toggleMoreMenu(e) {
   e.stopPropagation();
-  const menu = document.getElementById('moreMenu');
-  const isOpen = menu.classList.contains('open');
+  var btn = e.target.closest('button');
+  if (!btn) btn = e.currentTarget;
+  var menu = document.getElementById('moreMenu');
+  var isOpen = menu.classList.contains('open');
   if (isOpen) { closeMoreMenu(); return; }
-  // Use fixed positioning to avoid overflow clipping on mobile
-  const rect = e.currentTarget.getBoundingClientRect();
-  menu.style.position = 'fixed';
-  menu.style.top = (rect.bottom + 6) + 'px';
-  menu.style.right = (window.innerWidth - rect.right) + 'px';
-  menu.style.left = 'auto';
-  menu.classList.add('open');
+  // Move menu to body to completely escape overflow-x:auto header container
+  if (menu.parentElement !== document.body) {
+    _moreMenuOriginalParent = menu.parentElement;
+    _moreMenuOriginalNext = menu.nextSibling;
+    document.body.appendChild(menu);
+  }
+  // Position relative to viewport using the button's position
+  var rect = btn.getBoundingClientRect();
+  menu.style.cssText = 'position:fixed;top:' + (rect.bottom + 6) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;z-index:9999;display:block;';
 }
 function closeMoreMenu() {
-  const menu = document.getElementById('moreMenu');
+  var menu = document.getElementById('moreMenu');
   menu.classList.remove('open');
-  menu.style.position = '';
-  menu.style.top = '';
-  menu.style.right = '';
-  menu.style.left = '';
+  menu.style.cssText = '';
+  // Restore menu to original position
+  if (_moreMenuOriginalParent && menu.parentElement === document.body) {
+    if (_moreMenuOriginalNext) {
+      _moreMenuOriginalParent.insertBefore(menu, _moreMenuOriginalNext);
+    } else {
+      _moreMenuOriginalParent.appendChild(menu);
+    }
+    _moreMenuOriginalParent = null;
+    _moreMenuOriginalNext = null;
+  }
 }
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('.more-wrap')) closeMoreMenu();
+  if (!e.target.closest('.more-wrap') && !e.target.closest('#moreMenu')) closeMoreMenu();
 });
+document.addEventListener('touchstart', function(e) {
+  if (!e.target.closest('.more-wrap') && !e.target.closest('#moreMenu')) closeMoreMenu();
+}, { passive: true });
 
 // ===== Utils =====
 function fmt(n) {
