@@ -3196,8 +3196,8 @@ function parseFundText(text) {
   // === Label classification via longest-match-wins scoring ===
   const HOLDING_KW = ['持有金额','持仓金额','持仓市值','持有市值','当前市值','资产净值','市值','持仓','持有'];
   const COST_KW = ['持有成本','买入成本','累计投入','投入成本','成本'];
-  const PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益','今日收益','昨日收益','收益','盈亏'];
-  const COSTNAV_KW = ['持仓成本价','成本净值','持仓成本','持仓均价','成本均价','买入均价','成本价','单位成本','均价'];
+  const PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益','收益','盈亏','今日收益','昨日收益'];
+  const COSTNAV_KW = ['持仓成本价','成本净值','持仓成本','持仓均价','成本均价','买入均价','成本价','持仓价','单位成本','均价'];
   // Shares keywords — these lines must be EXCLUDED from number extraction
   const SHARES_KW = ['可用份额','持有份额','份额','可用'];
 
@@ -3206,6 +3206,9 @@ function parseFundText(text) {
     for (const kw of SHARES_KW) {
       if (line.includes(kw)) return 'shares';
     }
+    // Reject rate/percentage lines (e.g., "持有收益率", "昨日收益率")
+    // These contain rate keywords but the value is a percentage, not an amount
+    if (/率$/.test(line)) return null;
     let best = { cat: null, score: 0 };
     for (const kw of HOLDING_KW) {
       if (line.includes(kw) && kw.length > best.score) best = { cat: 'holding', score: kw.length };
@@ -3234,7 +3237,9 @@ function parseFundText(text) {
     if (!/[\u4e00-\u9fa5]/.test(s)) return false;
     const digits = (s.match(/\d/g) || []).length;
     if (digits > s.length * 0.3) return false;
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用|买入|浮动|今日|资产|负债|可用|在途|冻结|分红|定投|风险|等级|合同|开户|登记|托管|管理|销售|费率|份额|登记|万份|七日|年化|单位|累计|净值|公告|估值|清算|交割|到账)/.test(s)) return false;
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用|买入|浮动|今日|资产|负债|可用|在途|冻结|分红|定投|风险|等级|合同|开户|登记|托管|管理|销售|费率|份额|登记|万份|七日|年化|单位|累计|净值|公告|估值|清算|交割|到账|中风险|低风险|高风险|中低风险|中高风险)/.test(s)) return false;
+    // Reject risk-level labels (e.g., "中风险", "低风险")
+    if (/风险/.test(s)) return false;
     if (/^[-=|]+$/.test(s)) return false;
     // Reject if it looks like a label (ends with 价/率/额 but no fund suffix)
     if (/(价|率|额|期|日)$/.test(s) && !/(混合|指数|ETF|联接|LOF|基金|债券|股票|增强|QDII|FOF)/.test(s)) return false;
@@ -3303,13 +3308,23 @@ function parseFundText(text) {
     let holding = 0, cost = 0, profit = 0, costNav = 0;
     let foundHolding = false, foundCost = false, foundProfit = false, foundCostNav = false;
     const allKw = [...COSTNAV_KW, ...HOLDING_KW, ...COST_KW, ...PROFIT_KW].sort((a, b) => b.length - a.length);
+    // Primary profit keywords (cumulative/total profit) — matched first
+    const PRIMARY_PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益'];
     const usedLines = new Set();
+
+    // Helper: check if a stripped line contains a primary profit keyword
+    function hasPrimaryProfit(s) {
+      for (const kw of PRIMARY_PROFIT_KW) { if (s.includes(kw)) return true; }
+      return false;
+    }
 
     for (let li = 0; li < blockLines.length; li++) {
       const lt = blockLines[li]; // original (with spaces)
       const ltS = strippedLines[searchStart + li]; // stripped (no spaces)
       const cat = classifyLine(ltS);
       if (!cat || cat === 'shares') continue;
+      // For profit: in first pass, skip lines that don't have primary profit keywords
+      if (cat === 'profit' && !hasPrimaryProfit(ltS)) continue;
       // Find which keyword matched and its position
       let matchedKw = '', kwPos = -1;
       for (const kw of allKw) {
@@ -3347,6 +3362,32 @@ function parseFundText(text) {
         cost = Math.abs(val); foundCost = true;
       } else if (cat === 'profit' && !foundProfit) {
         profit = val; foundProfit = true;
+      }
+    }
+
+    // Second pass for profit: if primary profit not found, try secondary keywords (今日收益/昨日收益/收益/盈亏)
+    if (!foundProfit) {
+      for (let li = 0; li < blockLines.length; li++) {
+        if (usedLines.has(li)) continue;
+        const lt = blockLines[li];
+        const ltS = strippedLines[searchStart + li];
+        const cat = classifyLine(ltS);
+        if (cat !== 'profit') continue;
+        let matchedKw = '', kwPos = -1;
+        for (const kw of allKw) {
+          const idx = ltS.indexOf(kw);
+          if (idx >= 0 && kw.length > matchedKw.length) { matchedKw = kw; kwPos = idx; }
+        }
+        let nums = [];
+        if (kwPos >= 0) {
+          const afterKw = ltS.slice(kwPos + matchedKw.length);
+          const afterNums = extractNum(afterKw);
+          if (afterNums.length > 0) nums = [afterNums[0]];
+        }
+        if (nums.length === 0) nums = extractNum(ltS);
+        if (nums.length === 0) continue;
+        profit = nums[0]; foundProfit = true; usedLines.add(li);
+        break;
       }
     }
 
@@ -3389,16 +3430,27 @@ function parseFundText(text) {
       if (foundHolding && foundProfit) { cost = holding - profit; foundCost = true; }
     }
     if (!foundCostNav) {
+      // Two-pass fallback: prefer lines with cost-related keywords, avoid NAV lines
+      const costNavCandidates = [];
+      const otherCandidates = [];
       for (const lt of blockLines) {
         if (classifyLine(lt) === 'shares') continue;
-        for (const n of extractNum(lt)) {
+        const ltS2 = lt.replace(/\s+/g, '');
+        // Skip lines that are clearly NAV (净值) not cost basis
+        if (/净值/.test(ltS2) && !/成本.*净值|净值.*成本/.test(ltS2)) continue;
+        for (const n of extractNum(ltS2)) {
           if (Math.abs(n) > 0 && Math.abs(n) < 100 && Math.abs(n) !== Math.abs(holding) && Math.abs(n) !== Math.abs(cost) && Math.abs(n) !== Math.abs(profit)) {
             const dec = n.toString(); const dotIdx = dec.indexOf('.');
-            if (dotIdx >= 0 && dec.length - dotIdx - 1 >= 2) { costNav = Math.abs(n); foundCostNav = true; break; }
+            if (dotIdx >= 0 && dec.length - dotIdx - 1 >= 2) {
+              const entry = { val: Math.abs(n), line: ltS2 };
+              if (/成本|价/.test(ltS2)) costNavCandidates.push(entry);
+              else otherCandidates.push(entry);
+            }
           }
         }
-        if (foundCostNav) break;
       }
+      const preferred = costNavCandidates.length > 0 ? costNavCandidates : otherCandidates;
+      if (preferred.length > 0) { costNav = preferred[0].val; foundCostNav = true; }
     }
 
     const sector = guessSector(name, cp.code);
