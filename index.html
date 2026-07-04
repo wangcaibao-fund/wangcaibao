@@ -3130,14 +3130,18 @@ function parseFundText(text) {
   const results = [];
 
   // === Label classification via longest-match-wins scoring ===
-  // Each keyword scores by its length. A line's category = highest scoring keyword found.
-  // This prevents "持有" (2) from winning when "持有金额" (4) is present.
   const HOLDING_KW = ['持有金额','持仓金额','持仓市值','持有市值','当前市值','资产净值','市值','持仓','持有'];
   const COST_KW = ['持有成本','持仓成本','买入成本','累计投入','投入成本','成本'];
   const PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益','今日收益','昨日收益','收益','盈亏'];
   const COSTNAV_KW = ['成本净值','成本价','持仓成本价','买入均价','单位成本'];
+  // Shares keywords — these lines must be EXCLUDED from number extraction
+  const SHARES_KW = ['可用份额','持有份额','份额','可用'];
 
   function classifyLine(line) {
+    // First check if line is about shares — if so, skip it entirely
+    for (const kw of SHARES_KW) {
+      if (line.includes(kw)) return 'shares';
+    }
     let best = { cat: null, score: 0 };
     for (const kw of HOLDING_KW) {
       if (line.includes(kw) && kw.length > best.score) best = { cat: 'holding', score: kw.length };
@@ -3166,7 +3170,7 @@ function parseFundText(text) {
     if (!/[\u4e00-\u9fa5]/.test(s)) return false;
     const digits = (s.match(/\d/g) || []).length;
     if (digits > s.length * 0.3) return false;
-    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收)/.test(s)) return false;
+    if (/^(基金|名称|代码|持仓|市值|盈亏|序号|昨日|累计|收益|净值|日期|类型|状态|金额|份额|确认|交易|操作|持有|成本|转入|转出|申购|赎回|昨收|可用)/.test(s)) return false;
     if (/^[-=|]+$/.test(s)) return false;
     return true;
   }
@@ -3222,7 +3226,7 @@ function parseFundText(text) {
 
     for (const lt of blockLines) {
       const cat = classifyLine(lt);
-      if (!cat) continue;
+      if (!cat || cat === 'shares') continue; // skip shares lines entirely
       // Remove the matched keyword to isolate the value
       let valueStr = lt;
       for (const kw of allKw) {
@@ -3230,7 +3234,9 @@ function parseFundText(text) {
       }
       const nums = extractNum(valueStr);
       if (nums.length === 0) continue;
-      const val = nums[nums.length - 1];
+      // For holding: use FIRST number (shares often appear after, on same line)
+      // For others: use last number
+      const val = cat === 'holding' ? nums[0] : nums[nums.length - 1];
 
       if (cat === 'costNav' && !foundCostNav && Math.abs(val) < 100) {
         costNav = Math.abs(val); foundCostNav = true;
@@ -3243,11 +3249,13 @@ function parseFundText(text) {
       }
     }
 
-    // 3. Heuristic fallback for unlabeled numbers
+    // 3. Heuristic fallback for unlabeled numbers (excluding shares lines)
     if (!foundHolding || !foundCost) {
       const allNums = [];
       for (const lt of blockLines) {
-        if (classifyLine(lt)) continue;
+        const cat = classifyLine(lt);
+        if (cat === 'shares') continue; // explicitly skip shares
+        if (cat) continue; // skip other labeled lines
         for (const n of extractNum(lt)) {
           if (foundHolding && Math.abs(n) === holding) continue;
           if (foundCost && Math.abs(n) === cost) continue;
