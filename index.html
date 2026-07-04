@@ -790,6 +790,8 @@
             <option>金融</option><option>制造</option><option>军工</option><option>债券</option>
             <option>港股</option><option>美股</option><option>综合</option>
             <option>黄金</option><option>有色金属</option><option>锂矿</option><option>白银</option>
+            <option>房地产</option><option>农业</option><option>环保</option><option>基建</option>
+            <option>传媒</option><option>汽车</option>
           </select>
         </div>
         <div class="form-group"><label>细分板块</label>
@@ -992,7 +994,7 @@
 
 <script>
 // ===== Constants =====
-const DATA_VERSION = '2';
+const DATA_VERSION = '3';
 const VERSION_KEY = 'fund_dashboard_version';
 const STORAGE_KEY = 'fund_dashboard_data';
 const HISTORY_KEY = 'fund_dashboard_history';
@@ -1004,7 +1006,9 @@ const SECTOR_COLORS = {
   "消费":"#d4727c","医药":"#5ba8b5","科技":"#9b85c4","新能源":"#6dae7a",
   "金融":"#c9a96e","制造":"#7a8a96","军工":"#6889b4","债券":"#9a9a9a",
   "港股":"#c47a9e","美股":"#5aaa9a","综合":"#8484b8",
-  "黄金":"#d4a017","有色金属":"#b08040","锂矿":"#6aaa6a","白银":"#a8a8a8"
+  "黄金":"#d4a017","有色金属":"#b08040","锂矿":"#6aaa6a","白银":"#a8a8a8",
+  "房地产":"#8a7060","农业":"#6a9a50","环保":"#5a9a8a","基建":"#7a8a6a",
+  "传媒":"#9a6a8a","汽车":"#6a7aaa"
 };
 const SUB_SECTORS = {
   "消费":["白酒","食品饮料","免税零售","家电","其他消费"],
@@ -1021,7 +1025,13 @@ const SUB_SECTORS = {
   "黄金":["黄金ETF","黄金矿业","其他黄金"],
   "有色金属":["铜铝","稀有金属","其他有色"],
   "锂矿":["锂矿开采","锂盐加工","其他锂矿"],
-  "白银":["白银ETF","白银矿业","其他白银"]
+  "白银":["白银ETF","白银矿业","其他白银"],
+  "房地产":["住宅地产","商业地产","REITs","其他房地产"],
+  "农业":["种植业","养殖业","种业","其他农业"],
+  "环保":["水务","污染治理","绿色生态","其他环保"],
+  "基建":["建筑工程","交通基建","建材","其他基建"],
+  "传媒":["影视","游戏","出版广告","其他传媒"],
+  "汽车":["整车","零部件","新能源车","其他汽车"]
 };
 const SUB_SECTOR_COLORS = {
   "白酒":"#c4606a","食品饮料":"#d4727c","免税零售":"#d98090","家电":"#e09aa0","其他消费":"#d98090",
@@ -1038,7 +1048,13 @@ const SUB_SECTOR_COLORS = {
   "黄金ETF":"#d4a017","黄金矿业":"#c49010","其他黄金":"#b48a10",
   "铜铝":"#b08040","稀有金属":"#a07030","其他有色":"#907030",
   "锂矿开采":"#5a9a5a","锂盐加工":"#6aaa6a","其他锂矿":"#5a9a5a",
-  "白银ETF":"#a8a8a8","白银矿业":"#989898","其他白银":"#888888"
+  "白银ETF":"#a8a8a8","白银矿业":"#989898","其他白银":"#888888",
+  "住宅地产":"#7a6050","商业地产":"#8a7060","REITs":"#9a8070","其他房地产":"#8a7060",
+  "种植业":"#5a8a40","养殖业":"#6a9a50","种业":"#4a7a30","其他农业":"#5a8a40",
+  "水务":"#4a8a7a","污染治理":"#5a9a8a","绿色生态":"#3a7a6a","其他环保":"#4a8a7a",
+  "建筑工程":"#6a7a5a","交通基建":"#7a8a6a","建材":"#8a9a7a","其他基建":"#7a8a6a",
+  "影视":"#8a5a7a","游戏":"#9a6a8a","出版广告":"#7a4a6a","其他传媒":"#8a5a7a",
+  "整车":"#5a6a9a","零部件":"#6a7aaa","新能源车":"#4a5a8a","其他汽车":"#5a6a9a"
 };
 const MAX_FUNDS = 15;
 const LINE_COLORS = [
@@ -3075,28 +3091,62 @@ function petClick() {
 
 // ===== Smart Import =====
 const SECTOR_KEYWORDS = {
-  "消费":["白酒","食品","饮料","家电","乳业","调味品","餐饮","零售","消费","食品"],
-  "医药":["医药","医疗","生物","健康","制药","药业","创新药","中药","疫苗"],
-  "科技":["芯片","半导体","软件","计算机","通信","5G","信息","互联网","人工智能","AI","数据","云计算","网络"],
-  "新能源":["光伏","锂电","新能源","碳中和","风电","储能","氢能","太阳能","电池"],
-  "金融":["银行","证券","保险","金融","信托","期货"],
-  "制造":["机械","工业","制造","自动化","装备","机器人","数控"],
-  "军工":["国防","军工","航天","航空","兵器","船舶"],
-  "债券":["债券","国债","利率","信用债","纯债"],
-  "港股":["恒生","港股","H股","港交所"],
+  "消费":["白酒","食品","饮料","家电","乳业","调味品","餐饮","零售","消费","食品","品牌","酒"],
+  "医药":["医药","医疗","生物","健康","制药","药业","创新药","中药","疫苗","养生","保健"],
+  "科技":["芯片","半导体","软件","计算机","通信","5G","信息","互联网","人工智能","AI","数据","云计算","网络","数字","科技","电子"],
+  "新能源":["光伏","锂电","新能源","碳中和","风电","储能","氢能","太阳能","电池","清洁","碳中和"],
+  "金融":["银行","证券","保险","金融","信托","期货","非银"],
+  "制造":["机械","工业","制造","自动化","装备","机器人","数控","高端制造","智能制造","工业互联"],
+  "军工":["国防","军工","航天","航空","兵器","船舶","军民融合"],
+  "债券":["债券","国债","利率","信用债","纯债","短债","利率债"],
+  "港股":["恒生","港股","H股","港交所","沪港深","港股通"],
   "美股":["纳斯达克","标普","美股","道琼斯","美国"],
   "黄金":["黄金","贵金属","金价","金ETF","金矿"],
-  "有色金属":["有色","铜","铝","稀有金属","金属"],
+  "有色金属":["有色","铜","铝","稀有金属","金属","钢铁","矿"],
   "锂矿":["锂矿","锂盐","碳酸锂","锂"],
   "白银":["白银","银ETF","银矿"],
-  "综合":["沪深300","中证500","中证1000","上证50","指数","创业板","科创板","宽基"]
+  "房地产":["房地产","地产","房产","物业","REITs"],
+  "农业":["农业","养殖","种植","畜牧","种业","农药","化肥"],
+  "环保":["环保","水务","污染治理","绿色","生态","环境"],
+  "基建":["基建","建筑","铁路","公路","交通","水泥","建材"],
+  "传媒":["传媒","影视","游戏","出版","广告","文化","娱乐"],
+  "汽车":["汽车","新能源车","整车","零部件","车联网"],
+  "综合":["沪深300","中证500","中证1000","上证50","指数","创业板","科创板","宽基","中证A50","MSCI","富时","大盘","中小盘"]
 };
 
-function guessSector(name) {
+// Well-known fund code → sector lookup
+const FUND_CODE_SECTOR = {
+  '510500':'综合','510300':'综合','510050':'综合','159915':'综合','159919':'综合',
+  '512660':'军工','512680':'军工','159819':'科技','512480':'科技','515030':'科技',
+  '515790':'科技','512010':'医药','159929':'医药','512000':'金融','512880':'金融',
+  '512800':'金融','515050':'综合','510880':'金融','159605':'科技','159941':'美股',
+  '159920':'港股','513050':'港股','513060':'港股','518880':'黄金','159934':'黄金',
+  '518800':'黄金','159985':'综合','159922':'综合','512100':'综合','512120':'医药',
+  '515070':'新能源','516160':'新能源','159875':'新能源','515170':'消费','159928':'消费',
+  '512690':'消费','159869':'游戏','512980':'传媒','512200':'房地产','159707':'农业',
+  '515880':'金融','512400':'有色金属','159980':'有色金属','512580':'环保','515630':'制造',
+  '159807':'科技','515030':'科技','516180':'风电','159819':'科技','513180':'港股',
+  '513330':'美股','513100':'美股','159632':'科技','515650':'消费','516670':'农业',
+  '515220':'锂矿','159752':'新能源','516780':'旅游','515710':'综合'
+};
+
+function guessSector(name, code) {
+  // 1. Name-based matching (primary)
   for (const [sector, keywords] of Object.entries(SECTOR_KEYWORDS)) {
     for (const kw of keywords) {
       if (name.includes(kw)) return sector;
     }
+  }
+  // 2. Well-known fund code lookup
+  if (code && FUND_CODE_SECTOR[code]) return FUND_CODE_SECTOR[code];
+  // 3. Code prefix-based fallback
+  if (code) {
+    const p3 = code.slice(0, 3);
+    const p2 = code.slice(0, 2);
+    if (['518','159','516'].includes(p3)) return '黄金';
+    if (p3 === '513' || p2 === '16') return '港股';
+    if (['515','516','159'].includes(p3)) return '科技';
+    if (p3 === '512') return '综合';
   }
   return '综合';
 }
@@ -3115,7 +3165,13 @@ function guessSubSector(name, sector) {
     "有色金属":{"铜":"铜铝","铝":"铜铝","有色":"其他有色","稀有金属":"稀有金属"},
     "锂矿":{"锂矿":"锂矿开采","锂盐":"锂盐加工","碳酸锂":"锂盐加工","锂":"锂矿开采"},
     "白银":{"银ETF":"白银ETF","白银ETF":"白银ETF","银矿":"白银矿业","白银":"白银ETF"},
-    "综合":{"沪深300":"沪深300","中证500":"中证500","上证50":"上证50","指数":"指数"}
+    "房地产":{"地产":"住宅地产","房产":"住宅地产","REITs":"REITs","商业":"商业地产","物业":"商业地产"},
+    "农业":{"种植":"种植业","养殖":"养殖业","种业":"种业","农药":"种植业","化肥":"种植业","畜牧":"养殖业"},
+    "环保":{"水务":"水务","污染":"污染治理","绿色":"绿色生态","生态":"绿色生态","环境":"污染治理"},
+    "基建":{"建筑":"建筑工程","铁路":"交通基建","公路":"交通基建","交通":"交通基建","水泥":"建材","建材":"建材"},
+    "传媒":{"影视":"影视","游戏":"游戏","出版":"出版广告","广告":"出版广告","文化":"出版广告","娱乐":"影视"},
+    "汽车":{"整车":"整车","零部件":"零部件","车联网":"零部件","新能源车":"新能源车"},
+    "综合":{"沪深300":"沪深300","中证500":"中证500","上证50":"上证50","中证1000":"中证500","指数":"指数","创业板":"沪深300","科创板":"沪深300","MSCI":"沪深300","富时":"沪深300","A50":"沪深300","大盘":"沪深300","中小盘":"行业轮动"}
   };
   const subMap = map[sector] || {};
   for (const [kw, sub] of Object.entries(subMap)) {
@@ -3131,9 +3187,9 @@ function parseFundText(text) {
 
   // === Label classification via longest-match-wins scoring ===
   const HOLDING_KW = ['持有金额','持仓金额','持仓市值','持有市值','当前市值','资产净值','市值','持仓','持有'];
-  const COST_KW = ['持有成本','持仓成本','买入成本','累计投入','投入成本','成本'];
+  const COST_KW = ['持有成本','买入成本','累计投入','投入成本','成本'];
   const PROFIT_KW = ['持有收益','持仓收益','累计盈亏','持有盈亏','浮动盈亏','累计收益','今日收益','昨日收益','收益','盈亏'];
-  const COSTNAV_KW = ['成本净值','成本价','持仓成本价','买入均价','单位成本'];
+  const COSTNAV_KW = ['持仓成本价','成本净值','持仓成本','持仓均价','成本均价','买入均价','成本价','单位成本','均价'];
   // Shares keywords — these lines must be EXCLUDED from number extraction
   const SHARES_KW = ['可用份额','持有份额','份额','可用'];
 
@@ -3177,10 +3233,10 @@ function parseFundText(text) {
 
   function extractName(s) {
     s = s.trim();
-    const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,25}(?:混合|指数|ETF联接|ETF|联接|LOF|股票|增强|债券|QDII|FOF|基金)[A-Za-z]?)/);
+    const withSuffix = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30}(?:混合|指数|ETF联接|ETF|联接|LOF|股票|增强|债券|QDII|FOF|基金|配置|产业|主题|精选|成长|价值|红利|龙头|量化|智能|优选|回报|灵活|沪深|中证|创业板|科创板)[A-Za-z]?)/);
     if (withSuffix) return withSuffix[1];
-    const cnMatch = s.match(/([\u4e00-\u9fa5A-Za-z]{2,30})/);
-    if (cnMatch && isFundName(cnMatch[1])) return cnMatch[1];
+    const cnMatch = s.match(/([\u4e00-\u9fa5][\u4e00-\u9fa5A-Za-z\s]{1,25})/);
+    if (cnMatch && isFundName(cnMatch[1].trim())) return cnMatch[1].trim();
     return '';
   }
 
@@ -3199,21 +3255,27 @@ function parseFundText(text) {
     const blockLines = [];
     for (let j = searchStart; j <= blockEnd; j++) blockLines.push(lines[j]);
 
-    // 1. Extract fund name
+    // 1. Extract fund name — search broadly
     let name = '';
     const codeLine = lines[cp.lineIdx];
-    const beforeCode = codeLine.slice(0, cp.matchIdx).trim();
-    const afterCode = codeLine.slice(cp.matchIdx + 6).trim();
-    name = extractName(afterCode) || extractName(beforeCode);
+    // Try full line first (name might be anywhere on the code line)
+    name = extractName(codeLine.replace(/\d{6}/g, ' ').trim());
     if (!name) {
-      for (let j = cp.lineIdx - 1; j >= Math.max(searchStart, cp.lineIdx - 3); j--) {
-        if (/\d{6}/.test(lines[j])) break;
+      const beforeCode = codeLine.slice(0, cp.matchIdx).trim();
+      const afterCode = codeLine.slice(cp.matchIdx + 6).trim();
+      name = extractName(afterCode) || extractName(beforeCode);
+    }
+    // Search above — skip code lines, don't break
+    if (!name) {
+      for (let j = cp.lineIdx - 1; j >= Math.max(searchStart, cp.lineIdx - 5); j--) {
+        if (/\d{6}/.test(lines[j])) continue; // skip but don't break
         const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
+    // Search below — skip code lines, don't break
     if (!name) {
-      for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 2); j++) {
-        if (/\d{6}/.test(lines[j])) break;
+      for (let j = cp.lineIdx + 1; j <= Math.min(blockEnd, cp.lineIdx + 3); j++) {
+        if (/\d{6}/.test(lines[j])) continue; // skip but don't break
         const c = extractName(lines[j]); if (c) { name = c; break; }
       }
     }
@@ -3281,7 +3343,26 @@ function parseFundText(text) {
       profit = holding - cost;
     }
 
-    const sector = guessSector(name);
+    // 4b. costNav fallback: if cost value is small, it's likely costNav (per-unit)
+    if (!foundCostNav && foundCost && cost > 0 && cost < 100) {
+      costNav = cost; foundCostNav = true;
+      cost = 0; foundCost = false;
+      if (foundHolding && foundProfit) { cost = holding - profit; foundCost = true; }
+    }
+    if (!foundCostNav) {
+      for (const lt of blockLines) {
+        if (classifyLine(lt) === 'shares') continue;
+        for (const n of extractNum(lt)) {
+          if (Math.abs(n) > 0 && Math.abs(n) < 100 && Math.abs(n) !== Math.abs(holding) && Math.abs(n) !== Math.abs(cost) && Math.abs(n) !== Math.abs(profit)) {
+            const dec = n.toString(); const dotIdx = dec.indexOf('.');
+            if (dotIdx >= 0 && dec.length - dotIdx - 1 >= 2) { costNav = Math.abs(n); foundCostNav = true; break; }
+          }
+        }
+        if (foundCostNav) break;
+      }
+    }
+
+    const sector = guessSector(name, cp.code);
     const subSector = guessSubSector(name, sector);
     results.push({ code: cp.code, name, sector, subSector, holding, cost, profit, costNav });
   }
@@ -3440,8 +3521,8 @@ function confirmImport() {
       if (funds.length >= MAX_FUNDS) { toast(`已达上限${MAX_FUNDS}只，部分基金未导入`); break; }
       funds.push({
         name: r.name, code: r.code,
-        sector: r.sector || guessSector(r.name),
-        subSector: r.subSector || guessSubSector(r.name, r.sector || guessSector(r.name)),
+        sector: r.sector || guessSector(r.name, r.code),
+        subSector: r.subSector || guessSubSector(r.name, r.sector || guessSector(r.name, r.code)),
         holding: r.holding, cost: cost,
         costNav: r.costNav || 0, daily: 0, buyDate: ''
       });
