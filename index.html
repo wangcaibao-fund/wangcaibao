@@ -31,7 +31,10 @@
   /* 隐藏显眼元素 */
   [data-stealth="true"] .live-dot{display:none!important}
   [data-stealth="true"] .drag-handle{display:none!important}
-  [data-stealth="true"] .card-actions{display:none!important}
+  /* 操作按钮低调显示 */
+  [data-stealth="true"] .card-actions{display:flex!important}
+  [data-stealth="true"] .card-act-btn{opacity:.4!important;background:transparent!important}
+  [data-stealth="true"] .card-act-btn:hover{opacity:.8!important;background:var(--border)!important}
   [data-stealth="true"] .mobile-reorder{display:none!important}
   /* 标签统一灰色 */
   [data-stealth="true"] .tag{background:#ebedf0!important;color:#6b7280!important}
