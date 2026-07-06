@@ -470,6 +470,31 @@
   .mobile-reorder button{width:28px;height:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .mobile-reorder button:active{background:var(--accent);color:#fff}
   .detail-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;opacity:.3}
+
+  /* Inline Calculator */
+  .calc-inline{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);animation:calcSlideIn .2s ease}
+  @keyframes calcSlideIn{from{opacity:0;max-height:0}to{opacity:1;max-height:600px}}
+  .calc-inline-toggle{display:flex;gap:6px;margin-bottom:10px}
+  .calc-op-btn{flex:1;padding:7px 0;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text2);font-size:13px;cursor:pointer;transition:all .15s}
+  .calc-op-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .calc-op-btn:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+  .calc-inline-row{display:flex;gap:6px;margin-bottom:8px;align-items:flex-end}
+  .calc-inline-input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);outline:none;min-width:0}
+  .calc-inline-input:focus{border-color:var(--accent)}
+  .calc-fetch-btn{padding:7px 10px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  .calc-fetch-btn:hover{opacity:.9}
+  .calc-inline-result{margin-top:10px}
+  .calc-apply-btn{width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;margin-top:10px;transition:opacity .15s}
+  .calc-apply-btn:hover{opacity:.9}
+  .calc-inline-summary{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-bottom:8px}
+  .calc-inline-summary span{display:flex;align-items:center;gap:4px}
+  .calc-inline-summary .val{font-weight:600;color:var(--text);font-size:13px}
+  .calc-cost-compare{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .calc-cost-box{flex:1;text-align:center;padding:8px;border-radius:var(--radius);background:var(--calc-bg);font-size:12px}
+  .calc-cost-box .cc-val{font-size:16px;font-weight:700;margin:2px 0}
+  .calc-cost-box .cc-label{color:var(--text2);font-size:11px}
+  .calc-cost-arrow{color:var(--text2);font-size:16px;flex-shrink:0}
+  .calc-change-bar{padding:6px 10px;border-radius:var(--radius);font-size:12px;font-weight:500;margin-bottom:8px}
   .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
   .detail-header .dh-left{flex:1}
   .detail-header .dh-name{font-size:15px;font-weight:600;margin-bottom:2px}
@@ -531,6 +556,10 @@
     .detail-secondary{gap:6px 12px;margin-bottom:10px}
     .detail-aux{gap:10px;padding-top:8px}
     .card-act-btn{opacity:.7!important}
+    .calc-inline-row{flex-wrap:wrap}
+    .calc-inline-input{min-width:80px}
+    .calc-cost-compare{flex-direction:column;gap:6px}
+    .calc-cost-arrow{transform:rotate(90deg)}
     .table-card{padding:14px;margin-bottom:16px}
     .table-card h3{font-size:14px;margin-bottom:12px}
     .table-scroll{font-size:12px}
@@ -649,7 +678,7 @@
             <button class="hbtn" onclick="document.getElementById('importFile2').click()">导入</button>
             <input type="file" id="importFile2" accept=".json" style="display:none" onchange="importData(event)">
             <button class="hbtn" onclick="openTxLog()">交易记录</button>
-            <button class="hbtn" onclick="openCalc()">加减仓计算</button>
+            <button class="hbtn" onclick="openConvert()">基金转换</button>
             <button class="hbtn" onclick="openManage()">管理基金</button>
             <button class="hbtn" onclick="openImport()">导入持仓</button>
             <button class="hbtn danger" onclick="clearAllData()">清空数据</button>
@@ -2186,7 +2215,7 @@ function renderDetail(total) {
         style="border-top:3px solid ${color};animation-delay:${delay}s">
       <div class="card-actions">
         <button class="card-act-btn" onclick="editFund(${funds.indexOf(f)})" title="编辑">✎</button>
-        <button class="card-act-btn" onclick="openCalcForFund('${f.code}')" title="加减仓">±</button>
+        <button class="card-act-btn" onclick="toggleInlineCalc('${f.code}')" title="加减仓">±</button>
       </div>
       <span class="drag-handle" title="拖拽排序">⠿</span>
       <div class="mobile-reorder">
@@ -2246,6 +2275,23 @@ function renderDetail(total) {
           <div class="detail-progress-bar" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
       </div>
+      ${st ? '' : `
+      <div class="calc-inline" id="calcInline_${f.code}" style="display:none">
+        <div class="calc-inline-toggle">
+          <button class="calc-op-btn active" data-op="buy" onclick="switchInlineOp('${f.code}','buy')">加仓</button>
+          <button class="calc-op-btn" data-op="sell" onclick="switchInlineOp('${f.code}','sell')">减仓</button>
+        </div>
+        <div class="calc-inline-row">
+          <input type="number" class="calc-inline-input" placeholder="金额（元）" id="calcAmt_${f.code}" oninput="calcInlinePreview('${f.code}')">
+          <input type="number" class="calc-inline-input" placeholder="操作净值" id="calcNav_${f.code}" oninput="calcInlinePreview('${f.code}')">
+          <button class="calc-fetch-btn" onclick="fetchNavForInline('${f.code}')">获取</button>
+        </div>
+        <div class="calc-inline-row">
+          <input type="number" class="calc-inline-input" placeholder="费率%" id="calcFee_${f.code}" value="0" step="0.01" oninput="calcInlinePreview('${f.code}')">
+        </div>
+        <div class="calc-inline-result" id="calcResult_${f.code}"></div>
+        <button class="calc-apply-btn" id="calcApply_${f.code}" style="display:none" onclick="applyInlineCalc('${f.code}')">应用到持仓</button>
+      </div>`}
     </div>`;
   }).join('');
 }
@@ -2633,6 +2679,11 @@ function openCalc() {
   document.getElementById('calcOverlay').classList.add('active');
   onCalcFundChange();
 }
+function openConvert() {
+  openCalc();
+  document.querySelector('input[name="calcOp"][value="convert"]').checked = true;
+  onCalcOpChange();
+}
 function openCalcForFund(code) {
   openCalc();
   const sel = document.getElementById('calcFund');
@@ -2826,6 +2877,166 @@ function applyCalc(idx) {
   saveData();
   render();
   closeCalc();
+}
+
+// ===== Inline Calculator =====
+function toggleInlineCalc(code) {
+  var el = document.getElementById('calcInline_' + code);
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  // Close all other inline calculators
+  document.querySelectorAll('.calc-inline').forEach(function(c) { c.style.display = 'none'; });
+  if (isOpen) return; // was open, now closed
+  // Open this one
+  el.style.display = '';
+  // Reset inputs
+  var f = funds.find(function(f) { return f.code === code; });
+  if (!f) return;
+  document.getElementById('calcAmt_' + code).value = '';
+  document.getElementById('calcNav_' + code).value = '';
+  document.getElementById('calcFee_' + code).value = '0';
+  document.getElementById('calcResult_' + code).innerHTML = '';
+  document.getElementById('calcApply_' + code).style.display = 'none';
+  // Reset to buy mode
+  switchInlineOp(code, 'buy');
+}
+
+function switchInlineOp(code, op) {
+  var el = document.getElementById('calcInline_' + code);
+  if (!el) return;
+  el.querySelectorAll('.calc-op-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.op === op);
+  });
+  document.getElementById('calcResult_' + code).innerHTML = '';
+  document.getElementById('calcApply_' + code).style.display = 'none';
+  calcInlinePreview(code);
+}
+
+function calcInlinePreview(code) {
+  var f = funds.find(function(f) { return f.code === code; });
+  if (!f) return;
+  var opEl = document.getElementById('calcInline_' + code).querySelector('.calc-op-btn.active');
+  var op = opEl ? opEl.dataset.op : 'buy';
+  var amount = parseFloat(document.getElementById('calcAmt_' + code).value) || 0;
+  var nav = parseFloat(document.getElementById('calcNav_' + code).value) || 0;
+  var feeRate = parseFloat(document.getElementById('calcFee_' + code).value) || 0;
+  var resultEl = document.getElementById('calcResult_' + code);
+  var applyBtn = document.getElementById('calcApply_' + code);
+
+  if (amount <= 0 || nav <= 0) {
+    resultEl.innerHTML = '<div style="text-align:center;color:var(--text2);padding:12px 0;font-size:12px">请输入金额和操作时净值</div>';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  if (op === 'sell' && amount > f.holding) {
+    resultEl.innerHTML = '<div style="color:var(--red);padding:8px 0;font-size:12px">减仓金额不能超过当前持有金额</div>';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  var fee = 0, netInvest = amount;
+  if (op === 'buy' && feeRate > 0) {
+    fee = amount * feeRate / 100;
+    netInvest = amount - fee;
+  }
+
+  var sharesBefore = f.costNav > 0 ? f.cost / f.costNav : f.holding / nav;
+  var costPerUnitBefore = f.costNav > 0 ? f.costNav : (sharesBefore > 0 ? f.cost / sharesBefore : 0);
+
+  var costAfter, holdingAfter, sharesAfter, costPerUnitAfter;
+  if (op === 'buy') {
+    var newShares = netInvest / nav;
+    costAfter = f.cost + amount;
+    holdingAfter = f.holding + netInvest;
+    sharesAfter = sharesBefore + newShares;
+    costPerUnitAfter = sharesAfter > 0 ? costAfter / sharesAfter : 0;
+  } else {
+    var fraction = amount / f.holding;
+    var soldShares = amount / nav;
+    costAfter = f.cost * (1 - fraction);
+    holdingAfter = f.holding - amount;
+    sharesAfter = sharesBefore - soldShares;
+    costPerUnitAfter = sharesAfter > 0 ? costAfter / sharesAfter : 0;
+  }
+
+  var retBefore = f.cost ? ((f.holding - f.cost) / f.cost * 100) : 0;
+  var retAfter = costAfter ? ((holdingAfter - costAfter) / costAfter * 100) : 0;
+  var profitBefore = f.holding - f.cost;
+  var profitAfter = holdingAfter - costAfter;
+  var costChange = op === 'buy' ? amount : -(f.cost * amount / f.holding);
+  var costPerUnitChange = costPerUnitAfter - costPerUnitBefore;
+  var profitCls = function(v) { return v >= 0 ? 'positive' : 'negative'; };
+  var sign = function(v) { return v >= 0 ? '+' : ''; };
+
+  resultEl.innerHTML =
+    '<div class="calc-cost-compare">' +
+      '<div class="calc-cost-box"><div class="cc-label">操作前成本价</div><div class="cc-val">' + costPerUnitBefore.toFixed(4) + '</div><div class="cc-label">' + sharesBefore.toFixed(2) + ' 份</div></div>' +
+      '<div class="calc-cost-arrow">→</div>' +
+      '<div class="calc-cost-box"><div class="cc-label">' + (op === 'buy' ? '加仓后' : '减仓后') + '成本价</div><div class="cc-val">' + costPerUnitAfter.toFixed(4) + '</div><div class="cc-label">' + sharesAfter.toFixed(2) + ' 份</div></div>' +
+    '</div>' +
+    '<div class="calc-change-bar" style="background:' + (costPerUnitChange <= 0 ? '#fee2e2' : '#dcfce7') + ';color:' + (costPerUnitChange <= 0 ? '#991b1b' : '#166534') + '">' +
+      '成本价' + (costPerUnitChange <= 0 ? '降低' : '升高') + ' ' + Math.abs(costPerUnitChange).toFixed(4) + ' 元/份' +
+      (op === 'buy' ? (costPerUnitChange <= 0 ? '（摊薄成本，有利）' : '（抬高成本，注意）') : '') +
+    '</div>' +
+    '<div class="calc-inline-summary">' +
+      '<span>持有金额 <span class="val">' + fmt(f.holding) + ' → ' + fmt(holdingAfter) + '</span></span>' +
+      '<span>收益率 <span class="val ' + profitCls(retAfter - retBefore) + '">' + sign(retAfter - retBefore) + (retAfter - retBefore).toFixed(2) + '%</span></span>' +
+    '</div>' +
+    '<div class="calc-inline-summary">' +
+      '<span>' + (op === 'buy' ? '新增' : '卖出') + '份额 <span class="val">' + (op === 'buy' ? '+' : '-') + (op === 'buy' ? netInvest / nav : amount / nav).toFixed(2) + '</span></span>' +
+      (fee > 0 ? '<span>手续费 <span class="val negative">' + fmt(fee) + ' 元</span></span>' : '') +
+    '</div>';
+
+  applyBtn.style.display = '';
+}
+
+function fetchNavForInline(code) {
+  var f = funds.find(function(f) { return f.code === code; });
+  if (!f) return;
+  var navInput = document.getElementById('calcNav_' + code);
+  navInput.placeholder = '获取中...';
+  fetch('https://fundgz.1234567.com.cn/js/' + code + '.js')
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      var m = text.match(/"gsz":"([\d.]+)"/);
+      if (m) { navInput.value = m[1]; calcInlinePreview(code); }
+      else { navInput.placeholder = '获取失败'; }
+    })
+    .catch(function() { navInput.placeholder = '获取失败'; });
+}
+
+function applyInlineCalc(code) {
+  var f = funds.find(function(f) { return f.code === code; });
+  if (!f) return;
+  var opEl = document.getElementById('calcInline_' + code).querySelector('.calc-op-btn.active');
+  var op = opEl ? opEl.dataset.op : 'buy';
+  var amount = parseFloat(document.getElementById('calcAmt_' + code).value) || 0;
+  var nav = parseFloat(document.getElementById('calcNav_' + code).value) || 0;
+  if (amount <= 0 || nav <= 0) return;
+
+  var feeRate = parseFloat(document.getElementById('calcFee_' + code).value) || 0;
+  var fee = op === 'buy' ? amount * feeRate / 100 : 0;
+  var netInvest = amount - fee;
+  var txDateStr = new Date().toISOString().slice(0, 10);
+
+  if (op === 'buy') {
+    f.holding += netInvest;
+    f.cost += amount;
+    addTransaction({ type:'buy', fundName:f.name, fundCode:f.code, amount:amount, nav:nav, feeRate:feeRate, fee:fee, note:'加仓 ' + fmt(amount) + ' 元', txDate:txDateStr });
+    toast('已加仓 ' + f.name + '：+' + fmt(amount) + ' 元');
+  } else {
+    var fraction = amount / f.holding;
+    var realizedProfit = amount - f.cost * fraction;
+    f.holding -= amount;
+    f.cost -= f.cost * fraction;
+    addTransaction({ type:'sell', fundName:f.name, fundCode:f.code, amount:amount, nav:nav, note:'减仓 ' + fmt(amount) + ' 元，实现收益 ' + (realizedProfit >= 0 ? '+' : '') + fmt(realizedProfit), txDate:txDateStr });
+    toast('已减仓 ' + f.name + '：-' + fmt(amount) + ' 元');
+  }
+
+  snapshotHistory();
+  saveData();
+  render();
 }
 
 // ===== Fund Conversion =====
